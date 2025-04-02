@@ -1395,6 +1395,14 @@ void process_greylist_mac_filter(void *data)
                 rdk_vap_info->acl_map = hash_map_create();
             }
 
+	    acl_count = hash_map_count(rdk_vap_info->acl_map);
+            wifi_util_dbg_print(WIFI_CTRL,"acl_count =%d \n",acl_count);
+
+            if (acl_count >= MAX_ACL_COUNT) {
+                wifi_util_info_print(WIFI_CTRL,"acl_count =%d greater than max acl entry\n",acl_count);
+                continue;
+            }
+
             if (memcmp(new_mac, zero_mac, sizeof(mac_address_t)) == 0){
                 wifi_util_dbg_print(WIFI_CTRL,"GreyList new_mac is zero mac \n");
                 return ;

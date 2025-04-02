@@ -88,7 +88,7 @@ extern "C" {
 #define MAX_ASSOC_FRAME_REFRESH_PERIOD 30
 
 //Broadcom driver max acl count for each vap
-#define MAX_ACL_COUNT 20
+#define MAX_ACL_COUNT 64
 #define CAC_PERIOD                     1
 
 
