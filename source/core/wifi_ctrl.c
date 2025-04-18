@@ -2051,7 +2051,7 @@ int sync_wifi_hal_hotspot_vap_mac_entry_with_db(void)
     int ret;
 
     for (vap_index = 0; vap_index < (UINT)getTotalNumberVAPs; vap_index++) {
-        if(isVapHotspot5g(vap_index) || isVapHotspotSecure5g(vap_index) || isVapHotspotOpen6g(vap_index) || isVapHotspotSecure6g(vap_index))
+        if(isVapHotspotOpen5g(vap_index) || isVapHotspotSecure5g(vap_index) || isVapHotspotOpen6g(vap_index) || isVapHotspotSecure6g(vap_index))
         {
             rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
             if ((rdk_vap_info == NULL) || (rdk_vap_info->acl_map == NULL)) {
