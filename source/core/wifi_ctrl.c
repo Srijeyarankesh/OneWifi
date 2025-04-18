@@ -117,6 +117,50 @@ static int wifi_radio_set_enable(bool status)
     return ret;
 }
 
+static int client_connect_selfheal(void* arg)
+{
+    static const char* mac_addresses[] = {
+        "AA:BB:CC:DD:EE:FF", "A1:B1:C1:D1:E1:F1", "A2:B2:C2:D2:E2:F2", "A3:B3:C3:D3:E3:F3",
+        "A4:B4:C4:D4:E4:F4", "A5:B5:C5:D5:E5:F5", "A6:B6:C6:D6:E6:F6", "A7:B7:C7:D7:E7:F7",
+        "A8:B8:C8:D8:E8:F8", "A9:B9:C9:D9:E9:F9", "AA:BA:CA:DA:EA:FA", "AB:BB:CB:DB:EB:FB",
+        "AC:BC:CC:DC:EC:FC", "AD:BD:CD:DD:ED:FD", "AE:BE:CE:DE:EE:FE", "AF:BF:CF:DF:EF:FF",
+        "B0:B1:B2:B3:B4:B5", "B6:B7:B8:B9:BA:BB", "BC:BD:BE:BF:C0:C1", "C2:C3:C4:C5:C6:C7",
+        "C8:C9:CA:CB:CC:CD", "CE:CF:D0:D1:D2:D3", "D4:D5:D6:D7:D8:D9", "DA:DB:DC:DD:DE:DF",
+        "E0:E1:E2:E3:E4:E5", "E6:E7:E8:E9:EA:EB", "EC:ED:EE:EF:F0:F1", "F2:F3:F4:F5:F6:F7",
+        "F8:F9:FA:FB:FC:FD", "FE:FF:00:01:02:03", "04:05:06:07:08:09", "0A:0B:0C:0D:0E:0F",
+        "10:11:12:13:14:15", "16:17:18:19:1A:1B", "1C:1D:1E:1F:20:21", "22:23:24:25:26:27",
+        "28:29:2A:2B:2C:2D", "2E:2F:30:31:32:33", "34:35:36:37:38:39", "3A:3B:3C:3D:3E:3F",
+        "40:41:42:43:44:45", "46:47:48:49:4A:4B", "4C:4D:4E:4F:50:51", "52:53:54:55:56:57",
+        "58:59:5A:5B:5C:5D", "5E:5F:60:61:62:63", "64:65:66:67:68:69", "6A:6B:6C:6D:6E:6F",
+        "70:71:72:73:74:75", "76:77:78:79:7A:7B", "7C:7D:7E:7F:80:81", "82:83:84:85:86:87",
+        "88:89:8A:8B:8C:8D", "8E:8F:90:91:92:93", "94:95:96:97:98:99", "9A:9B:9C:9D:9E:9F",
+        "A0:A1:A2:A3:A4:A5", "A6:A7:A8:A9:AA:AB", "AC:AD:AE:AF:B0:B1", "B2:B3:B4:B5:B6:B7",
+        "B8:B9:BA:BB:BC:BD", "BE:BF:C0:C1:C2:C3", "C4:C5:C6:C7:C8:C9", "CA:CB:CC:CD:CE:CF"
+    };
+
+    int ap_indices[] = {9, 5, 18, 20};
+    char mac[18];
+    int mac_count = sizeof(mac_addresses) / sizeof(mac_addresses[0]);
+    int ap_count = sizeof(ap_indices) / sizeof(ap_indices[0]);
+
+    for (int i = 0; i < mac_count; i++) {
+        strncpy(mac, mac_addresses[i], sizeof(mac));
+        mac[sizeof(mac) - 1] = '\0';
+        for (int j = 0; j < ap_count; j++) {
+            if (ap_indices[j] < 0 || ap_indices[j] >= MAX_VAP) {
+                wifi_util_error_print(WIFI_CTRL,"%s:%d SREESH Accessing array out of bounds at index %d\n", __func__, __LINE__, j);
+                return -1;
+            }
+            if (wifi_addApAclDevice(ap_indices[j], mac) != RETURN_OK) {
+                wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Failed to add MAC %s to AP %d\n", __func__, __LINE__, mac, ap_indices[j]);
+                return -1;
+            }
+        }
+    }
+
+    return 0;
+}
+
 int get_ap_index_from_clientmac(mac_address_t mac_addr)
 {
     unsigned int r_itr = 0, v_itr = 0, vap_index = 0;
@@ -1992,53 +2036,56 @@ int sync_wifi_hal_hotspot_vap_mac_entry_with_db(void)
     mac_addr_str_t mac_str;
     mac_address_t acl_device_mac;
     acl_entry_t *acl_entry;
-    // hotspot open 5g VAP index
-    uint8_t vap_index = 5;
+    uint8_t vap_index;
     uint32_t acl_hal_count = 0, acl_db_count = 0;
     uint8_t acl_count= 0;
     rdk_wifi_vap_info_t *rdk_vap_info = NULL;
     int ret;
 
-    rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
-    if ((rdk_vap_info == NULL) || (rdk_vap_info->acl_map == NULL)) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d: idk vap_info get failure for Vap:%d\n", __func__, __LINE__, vap_index);
-        return RETURN_ERR;
-    }
+    for (vap_index = 0; vap_index < (UINT)getTotalNumberVAPs; vap_index++) {
+        if(isVapHotspot5g(vap_index) || isVapHotspotSecure5g(vap_index) || isVapHotspotOpen6g(vap_index) || isVapHotspotSecure6g(vap_index))
+        {
+            rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
+            if ((rdk_vap_info == NULL) || (rdk_vap_info->acl_map == NULL)) {
+                wifi_util_error_print(WIFI_CTRL, "SREESH %s:%d: idk vap_info get failure for Vap:%d\n", __func__, __LINE__, vap_index);
+                return RETURN_ERR;
+            }
 
-    acl_db_count  = hash_map_count(rdk_vap_info->acl_map);
+            acl_db_count  = hash_map_count(rdk_vap_info->acl_map);
 #ifdef NL80211_ACL
-    ret = wifi_hal_getApAclDeviceNum(vap_index, &acl_hal_count);
+            ret = wifi_hal_getApAclDeviceNum(vap_index, &acl_hal_count);
 #else
-    ret = wifi_getApAclDeviceNum(vap_index, &acl_hal_count);
+            ret = wifi_getApAclDeviceNum(vap_index, &acl_hal_count);
 #endif
 
-    if (ret != RETURN_OK) {
-        wifi_util_info_print(WIFI_CTRL, "%s:%d: wifi get ap acl device count failure:%d hal acl count:%d\r\n", __func__, __LINE__, ret, acl_hal_count);
-    }
+            if (ret != RETURN_OK) {
+            wifi_util_info_print(WIFI_CTRL, "SREESH %s:%d: wifi get ap acl device count failure:%d hal acl count:%d\r\n", __func__, __LINE__, ret, acl_hal_count);
+            }
 
-    if ((acl_db_count == 0) || (acl_db_count == acl_hal_count)) {
-        wifi_util_info_print(WIFI_CTRL, "%s:%d: acl_db_count = %d acl_hal_count = %d\r\n", __func__, __LINE__, acl_db_count, acl_hal_count);
-        return RETURN_OK;
-    }
+            if ((acl_db_count == 0) || (acl_db_count == acl_hal_count)) {
+            wifi_util_info_print(WIFI_CTRL, "SREESH %s:%d: acl_db_count = %d acl_hal_count = %d\r\n", __func__, __LINE__, acl_db_count, acl_hal_count);
+            return RETURN_OK;
+            }
 
-    wifi_util_info_print(WIFI_CTRL, "%s:%d: mismatch in mac filter entries, hal_count:%d db_count:%d\r\n", __func__, __LINE__, acl_hal_count, acl_db_count);
+            wifi_util_info_print(WIFI_CTRL, "SREESH %s:%d: mismatch in mac filter entries, hal_count:%d db_count:%d\r\n", __func__, __LINE__, acl_hal_count, acl_db_count);
 
-    acl_entry = hash_map_get_first(rdk_vap_info->acl_map);
-    while(acl_entry != NULL && acl_count < MAX_ACL_COUNT ) {
-        memcpy(&acl_device_mac,&acl_entry->mac,sizeof(mac_address_t));
-        to_mac_str(acl_device_mac, mac_str);
-        wifi_util_dbg_print(WIFI_CTRL, "%s:%d: calling wifi_addApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, mac_str, vap_index);
+            acl_entry = hash_map_get_first(rdk_vap_info->acl_map);
+            while(acl_entry != NULL && acl_count < MAX_ACL_COUNT ) {
+                memcpy(&acl_device_mac,&acl_entry->mac,sizeof(mac_address_t));
+                to_mac_str(acl_device_mac, mac_str);
+                wifi_util_dbg_print(WIFI_CTRL, "SREESH %s:%d: calling wifi_addApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, mac_str, vap_index);
 #ifdef NL80211_ACL
-        if (wifi_hal_addApAclDevice(vap_index, (CHAR *) mac_str) != RETURN_OK) {
+                if (wifi_hal_addApAclDevice(vap_index, (CHAR *) mac_str) != RETURN_OK) {
 #else
-        if (wifi_addApAclDevice(vap_index, (CHAR *) mac_str) != RETURN_OK) {
+                if (wifi_addApAclDevice(vap_index, (CHAR *) mac_str) != RETURN_OK) {
 #endif
-            wifi_util_error_print(WIFI_CTRL,"%s:%d wifi_addApAclDevice failed. vap_index:%d MAC:'%s'\n", __func__, __LINE__, vap_index, mac_str);
+                    wifi_util_error_print(WIFI_CTRL,"SREESH %s:%d wifi_addApAclDevice failed. vap_index:%d MAC:'%s'\n", __func__, __LINE__, vap_index, mac_str);
+                }
+                acl_entry = hash_map_get_next(rdk_vap_info->acl_map,acl_entry);
+                acl_count++;
+            }
         }
-        acl_entry = hash_map_get_next(rdk_vap_info->acl_map,acl_entry);
-        acl_count++;
     }
-
     return RETURN_OK;
 }
 
