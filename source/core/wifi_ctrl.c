@@ -151,7 +151,7 @@ static int client_connect_selfheal(void* arg)
                 wifi_util_error_print(WIFI_CTRL,"%s:%d SREESH Accessing array out of bounds at index %d\n", __func__, __LINE__, j);
                 return -1;
             }
-            if (wifi_addApAclDevice(ap_indices[j], mac) != RETURN_OK) {
+            if (wifi_hal_addApAclDevice(ap_indices[j], mac) != RETURN_OK) {
                 wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Failed to add MAC %s to AP %d\n", __func__, __LINE__, mac, ap_indices[j]);
                 return -1;
             }
@@ -2050,9 +2050,7 @@ int sync_wifi_hal_hotspot_vap_mac_entry_with_db(void)
     rdk_wifi_vap_info_t *rdk_vap_info = NULL;
     int ret;
 
-    for (vap_index = 0; vap_index < (UINT)getTotalNumberVAPs; vap_index++) {
-        if(isVapHotspotOpen5g(vap_index) || isVapHotspotSecure5g(vap_index) || isVapHotspotOpen6g(vap_index) || isVapHotspotSecure6g(vap_index))
-        {
+    for (vap_index = 0; vap_index < getTotalNumberVAPs; vap_index++) {
             rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
             if ((rdk_vap_info == NULL) || (rdk_vap_info->acl_map == NULL)) {
                 wifi_util_error_print(WIFI_CTRL, "SREESH %s:%d: idk vap_info get failure for Vap:%d\n", __func__, __LINE__, vap_index);
@@ -2093,7 +2091,6 @@ int sync_wifi_hal_hotspot_vap_mac_entry_with_db(void)
                 acl_count++;
             }
         }
-    }
     return RETURN_OK;
 }
 
