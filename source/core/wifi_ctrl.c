@@ -2050,7 +2050,7 @@ int sync_wifi_hal_hotspot_vap_mac_entry_with_db(void)
     rdk_wifi_vap_info_t *rdk_vap_info = NULL;
     int ret;
 
-    for (vap_index = 0; vap_index < getTotalNumberVAPs; vap_index++) {
+    for (vap_index = 0; vap_index < getTotalNumberVAPs(); vap_index++) {
             rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
             if ((rdk_vap_info == NULL) || (rdk_vap_info->acl_map == NULL)) {
                 wifi_util_error_print(WIFI_CTRL, "SREESH %s:%d: idk vap_info get failure for Vap:%d\n", __func__, __LINE__, vap_index);
