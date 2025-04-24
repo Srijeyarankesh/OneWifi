@@ -2056,7 +2056,7 @@ int sync_wifi_hal_hotspot_vap_mac_entry_with_db(void)
                 wifi_util_error_print(WIFI_CTRL, "SREESH %s:%d: idk vap_info get failure for Vap:%d\n", __func__, __LINE__, vap_index);
                 return RETURN_ERR;
             }
-
+            wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value ofvap_index = %d",__func__,__LINE__,vap_index);
             acl_db_count  = hash_map_count(rdk_vap_info->acl_map);
 #ifdef NL80211_ACL
             ret = wifi_hal_getApAclDeviceNum(vap_index, &acl_hal_count);
