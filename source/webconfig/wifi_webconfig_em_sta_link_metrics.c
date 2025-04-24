@@ -99,7 +99,7 @@ webconfig_error_t encode_em_sta_link_subdoc(webconfig_t *config, webconfig_subdo
     data->u.encoded.json = json;
 
     cJSON_AddStringToObject(json, "Version", "1.0");
-    cJSON_AddStringToObject(json, "SubDocName", "EM_STA_link_metrics");
+    cJSON_AddStringToObject(json, "SubDocName", "Easymesh STA link metrics");
     cJSON_AddNumberToObject(json, "Vap Index", params->em_sta_link_metrics_rsp.vap_index);
 
     obj_emstalink = cJSON_CreateArray();

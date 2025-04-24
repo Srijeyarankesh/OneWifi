@@ -9,7 +9,6 @@ SRCREV_2_10="9d07b9447e76059a2ddef2a879c57d0934634188"
 cd ..
 git clone https://github.com/rdkcentral/rdk-wifi-hal.git rdk-wifi-hal
 git clone https://github.com/rdkcentral/rdkb-halif-wifi.git halinterface
-
 cd $ONEWIFI_DIR
 mkdir -p install/bin
 mkdir -p install/lib
@@ -47,3 +46,8 @@ rm -rf hostap-patches
 
 #return back to initial directory
 cd $ONEWIFI_DIR
+#Copy the Toplevel Makefile of OpenWRT for Easymesh package and golden MT7966 config
+cp build/openwrt/Makefile_package ../Makefile
+cp build/openwrt/MT7966.config ../../../.config
+#Copy the avro dependency to package/libs
+cp -r build/openwrt/avro ../../libs/.
