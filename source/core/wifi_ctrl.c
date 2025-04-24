@@ -2044,13 +2044,13 @@ int sync_wifi_hal_hotspot_vap_mac_entry_with_db(void)
     mac_addr_str_t mac_str;
     mac_address_t acl_device_mac;
     acl_entry_t *acl_entry;
-    uint8_t vap_index;
+    int vap_index = 0;
     uint32_t acl_hal_count = 0, acl_db_count = 0;
     uint8_t acl_count= 0;
     rdk_wifi_vap_info_t *rdk_vap_info = NULL;
     int ret;
 
-    for (vap_index = 0; vap_index < getTotalNumberVAPs(); vap_index++) {
+    for (vap_index = 0; vap_index < MAX_NUM_RADIOS * MAX_NUM_VAP_PER_RADIO; vap_index++) {
             rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
             if ((rdk_vap_info == NULL) || (rdk_vap_info->acl_map == NULL)) {
                 wifi_util_error_print(WIFI_CTRL, "SREESH %s:%d: idk vap_info get failure for Vap:%d\n", __func__, __LINE__, vap_index);
@@ -2073,7 +2073,7 @@ int sync_wifi_hal_hotspot_vap_mac_entry_with_db(void)
             return RETURN_OK;
             }
 
-            wifi_util_info_print(WIFI_CTRL, "SREESH %s:%d: mismatch in mac filter entries, hal_count:%d db_count:%d\r\n", __func__, __LINE__, acl_hal_count, acl_db_count);
+            wifi_util_info_print(WIFI_CTRL, "SREESH %s:%d: mismatch in mac filter entries, hal_count:%d db_count:%d and vap_index = %d\r\n", __func__, __LINE__, acl_hal_count, acl_db_count,vap_index);
 
             acl_entry = hash_map_get_first(rdk_vap_info->acl_map);
             while(acl_entry != NULL && acl_count < MAX_ACL_COUNT ) {
