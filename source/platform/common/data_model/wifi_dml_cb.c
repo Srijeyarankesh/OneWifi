@@ -1476,7 +1476,8 @@ bool accesspoint_get_param_bool_value(void *obj_ins_context, char *param_name, b
         int vap_index = convert_vap_name_to_index(p_wifi_prop, pcfg->vap_name);
 
         if(isVapHotspot(vap_index)) {
-            *output_value = pcfg->u.bss_info.connected_building_enabled;
+            *output_value = pcfg->u.bss_info.managed_wifi_2;
+            wifi_util_info_print(WIFI_DMCLI,"Connected_Building_Enabled:%d\n", pcfg->u.bss_info.managed_wifi_2);
         } else {
             *output_value = false;
         }
@@ -1805,12 +1806,12 @@ bool accesspoint_set_param_bool_value(void *obj_ins_context, char *param_name, b
         }
     } else if(STR_CMP(param_name, "connected_building_enabled")) {
         if (!isVapHotspot(instance_number - 1)) {
-            wifi_util_error_print(WIFI_DMCLI,"RDK_LOG_ERROR, %s connected_building_enabled  not supported for vaps other than public vaps\n", __func__);
+            wifi_util_error_print(WIFI_DMCLI,"SREESH RDK_LOG_ERROR, %s connected_building_enabled  not supported for vaps other than public vaps\n", __func__);
             return false;
         }
-        p_dm_vap_info->u.bss_info.connected_building_enabled = output_value;
-        wifi_util_dbg_print(WIFI_DMCLI,"%s:%d: connected_building_enabled Value=%d\n",__func__,
-            __LINE__, p_dm_vap_info->u.bss_info.connected_building_enabled);
+        p_dm_vap_info->u.bss_info.managed_wifi_2 = output_value;
+        wifi_util_dbg_print(WIFI_DMCLI,"SREESH %s:%d: connected_building_enabled Value=%d\n",__func__,
+            __LINE__, p_dm_vap_info->u.bss_info.managed_wifi_2);
         set_dml_cache_vap_config_changed(instance_number - 1);
     } else if(STR_CMP(param_name, "X_RDKCENTRAL-COM_HostapMgtFrameCtrl")) {
         p_dm_vap_info->u.bss_info.hostap_mgt_frame_ctrl = output_value;

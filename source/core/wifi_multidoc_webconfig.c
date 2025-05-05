@@ -465,12 +465,12 @@ static int update_vap_info_managed_guest(void *data, wifi_vap_info_t *vap_info, 
     char *blob = NULL;
 
     if (connected_building_enabled) {
-        wifi_util_info_print(WIFI_CTRL, "%s: %d connected_building_enabled %d \n", __func__,__LINE__,connected_building_enabled);
+        wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d connected_building_enabled %d \n", __func__,__LINE__,connected_building_enabled);
         blob = cJSON_Print((cJSON *)data);
-        wifi_util_dbg_print(WIFI_CTRL,"Managed guest  blob is %s\n",blob);
+        wifi_util_dbg_print(WIFI_CTRL,"SREESH Managed guest  blob is %s\n",blob);
         root = cJSON_Parse(blob);
         if(root == NULL) {
-            wifi_util_error_print(WIFI_CTRL, "%s:Managed guest json  parse failure\n", __func__);
+            wifi_util_error_print(WIFI_CTRL, "SREESH %s:Managed guest json  parse failure\n", __func__);
             return RETURN_ERR;
         }
 
@@ -478,36 +478,36 @@ static int update_vap_info_managed_guest(void *data, wifi_vap_info_t *vap_info, 
 
             cJSON *blob_vap_name = cJSON_GetObjectItem(vb_entry, "VapName");
             if((blob_vap_name == NULL) || (cJSON_IsString(blob_vap_name) == false)) {
-                wifi_util_info_print(WIFI_CTRL, "%s: Missing VapName\n", __func__);
+                wifi_util_info_print(WIFI_CTRL, "SREESH %s: Missing VapName\n", __func__);
                 continue;
             }
 
             char *blob_vap_name_str = cJSON_GetStringValue(blob_vap_name);
             strncpy(repurposed_vap_name,blob_vap_name_str,sizeof(repurposed_vap_name)-1);
-            wifi_util_info_print(WIFI_CTRL, "repurposed_vap_name:%s %s: %d \n",repurposed_vap_name, __func__,__LINE__ );
+            wifi_util_info_print(WIFI_CTRL, "SREESH repurposed_vap_name:%s %s: %d \n",repurposed_vap_name, __func__,__LINE__ );
 
             if (strstr(blob_vap_name_str,"managed_guest_")) {
                 saveptr = strrchr(blob_vap_name_str, (int)'_');
                 if (saveptr == NULL) {
-                    wifi_util_error_print(WIFI_CTRL, "%s: %d vapname is not proper \n", __func__,__LINE__);
+                    wifi_util_error_print(WIFI_CTRL, "SREESH %s: %d vapname is not proper \n", __func__,__LINE__);
                     goto done;
                 }
                 snprintf(blob_vap_name_str,strlen(blob_vap_name_str)-1,"lnf_psk%s",saveptr);
             } else {
-                wifi_util_error_print(WIFI_CTRL, "%s: %d vapname is not proper \n", __func__,__LINE__);
+                wifi_util_error_print(WIFI_CTRL, "SREESH %s: %d vapname is not proper \n", __func__,__LINE__);
                 goto done;
             }
             if (!strcmp(vap_info->vap_name,blob_vap_name_str)) {
-                wifi_util_error_print(WIFI_CTRL, "%s: %d connected_building_enabled %d \n", __func__,__LINE__,connected_building_enabled);
+                wifi_util_error_print(WIFI_CTRL, "SREESH %s: %d connected_building_enabled %d \n", __func__,__LINE__,connected_building_enabled);
                 if (decode_ssid_blob(vap_info, vb_entry, bridge_name, true, execRetVal) != 0) {
-                    wifi_util_error_print(WIFI_CTRL, "%s: Failed to decode SSID blob\n", __func__);
+                    wifi_util_error_print(WIFI_CTRL, "SREESH %s: Failed to decode SSID blob\n", __func__);
                     status = RETURN_ERR;
                     goto done;
                  }
 
                 security_obj = cJSON_GetObjectItem(vb_entry, "Security");
                 if (security_obj == NULL) {
-                    wifi_util_error_print(WIFI_CTRL, "%s: Failed to get %s security\n", __func__, vap_info->vap_name);
+                    wifi_util_error_print(WIFI_CTRL, "SREESH %s: Failed to get %s security\n", __func__, vap_info->vap_name);
                     status = RETURN_ERR;
                     goto done;
                 }
@@ -515,7 +515,7 @@ static int update_vap_info_managed_guest(void *data, wifi_vap_info_t *vap_info, 
 
                 /* decode security blob */
                 if (decode_security_blob(vap_info, security_obj, execRetVal) != 0) {
-                    wifi_util_error_print(WIFI_CTRL, "%s: Failed to decode security blob\n", __func__);
+                    wifi_util_error_print(WIFI_CTRL, "SREESH %s: Failed to decode security blob\n", __func__);
                     status = RETURN_ERR;
                     goto done;
                 }
@@ -525,7 +525,7 @@ static int update_vap_info_managed_guest(void *data, wifi_vap_info_t *vap_info, 
             }
         }
     } else {
-        wifi_util_info_print(WIFI_CTRL, "%s: %d connected_building_enabled %d \n", __func__,__LINE__,connected_building_enabled);
+        wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d connected_building_enabled %d \n", __func__,__LINE__,connected_building_enabled);
         snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "br106");
         vap_info->u.bss_info.showSsid = false;
         vap_info->u.bss_info.enabled = true;
@@ -554,7 +554,7 @@ static int update_vap_info_managed_xfinity(void *data, wifi_vap_info_t *vap_info
     root = cJSON_Parse(blob);
 
     if (root == NULL) {
-        wifi_util_error_print(WIFI_CTRL, "%s:Managed xfinity json parse failure\n", __func__);
+        wifi_util_error_print(WIFI_CTRL, "SREESH %s:Managed xfinity json parse failure\n", __func__);
         return RETURN_ERR;
     }
     param = cJSON_GetObjectItem(root, "connected_building_enabled");
@@ -562,17 +562,17 @@ static int update_vap_info_managed_xfinity(void *data, wifi_vap_info_t *vap_info
     if (param) {
         if (cJSON_IsBool(param)) {
             connected_building_enabled = cJSON_IsTrue(param) ? true : false;
-            wifi_util_dbg_print(WIFI_CTRL, "   \"connected_building_enabled\": %s\n", (connected_building_enabled) ? "true" : "false");
+            wifi_util_dbg_print(WIFI_CTRL, "SREESH  \"connected_building_enabled\": %s\n", (connected_building_enabled) ? "true" : "false");
         } else {
-            wifi_util_dbg_print(WIFI_CTRL, "%s: \"connected_building_enabled\" is not boolean\n", __func__);
+            wifi_util_dbg_print(WIFI_CTRL, "SREESH %s: \"connected_building_enabled\" is not boolean\n", __func__);
             cJSON_Delete(root);
             return RETURN_ERR;
         }
     } else {
-        wifi_util_dbg_print(WIFI_CTRL, "%s: \"connected_building_enabled\" is not present\n", __func__);
+        wifi_util_dbg_print(WIFI_CTRL, "SREESH %s: \"connected_building_enabled\" is not present\n", __func__);
     }
-    vap_info->u.bss_info.connected_building_enabled = connected_building_enabled;
-    wifi_util_info_print(WIFI_CTRL, "  LINE %d \"connected_building_enabled\": %s and vap_name=%s\n", __LINE__,(vap_info->u.bss_info.connected_building_enabled) ? "true" : "false",vap_info->vap_name);
+    vap_info->u.bss_info.managed_wifi_2 = connected_building_enabled;
+    wifi_util_info_print(WIFI_CTRL, "SREESH  LINE %d \"connected_building_enabled\": %s and vap_name=%s\n", __LINE__,(vap_info->u.bss_info.managed_wifi_2) ? "true" : "false",vap_info->vap_name);
     cJSON_Delete(root);
     return status;
 }
@@ -593,7 +593,7 @@ static int update_vap_info_with_blob_info(void *blob, webconfig_subdoc_data_t *d
     if (!strcmp(vap_prefix,"lnf_psk")) {
         rc = get_managed_guest_bridge(&brval, sizeof(brval));
         if ( rc != 0) {
-            wifi_util_dbg_print(WIFI_CTRL,"Managed wifi bridge not found\n");
+            wifi_util_dbg_print(WIFI_CTRL,"SREESH Managed wifi bridge not found\n");
             strncpy(brval,"brlan15",sizeof(brval)-1);
         }
     }
@@ -647,12 +647,12 @@ static int push_blob_data(webconfig_subdoc_data_t *data, webconfig_subdoc_type_t
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
 
     if (webconfig_encode(&ctrl->webconfig, data, subdoc_type) != webconfig_error_none) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d - Failed webconfig_encode for subdoc type %d\n", __FUNCTION__, __LINE__, subdoc_type);
+        wifi_util_error_print(WIFI_CTRL, "SREESH %s:%d - Failed webconfig_encode for subdoc type %d\n", __FUNCTION__, __LINE__, subdoc_type);
         return RETURN_ERR;
     }
 
     str = data->u.encoded.raw;
-    wifi_util_dbg_print(WIFI_CTRL, "%s:%d: Encoded blob:\n%s\n", __func__, __LINE__, str);
+    wifi_util_dbg_print(WIFI_CTRL, "SREESH %s:%d: Encoded blob:\n%s\n", __func__, __LINE__, str);
     push_event_to_ctrl_queue(str, strlen(str), wifi_event_type_webconfig, wifi_event_webconfig_set_data_webconfig, NULL);
 
     webconfig_data_free(data);
@@ -1077,7 +1077,7 @@ pErr wifi_vap_cfg_subdoc_handler(void *data)
        cJSON *connected_building_enabled_o = cJSON_GetObjectItem(vb_entry, "Connected_building_enabled");
         if (connected_building_enabled_o == NULL) {
             wifi_util_dbg_print(WIFI_CTRL, "connected_building_enabled param is not present\n");
-            cJSON_AddBoolToObject(vb_entry,"Connected_building_enabled",wifi_vap_map->vap_array[vapArrayIndex].u.bss_info.connected_building_enabled);
+            cJSON_AddBoolToObject(vb_entry,"Connected_building_enabled",wifi_vap_map->vap_array[vapArrayIndex].u.bss_info.managed_wifi_2);
         }
 
         cJSON_AddStringToObject(vb_entry, "RepurposedVapName", wifi_vap_map->vap_array[vapArrayIndex].repurposed_vap_name);

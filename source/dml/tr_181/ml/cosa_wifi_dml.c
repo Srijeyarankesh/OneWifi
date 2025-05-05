@@ -6538,9 +6538,11 @@ AccessPoint_GetParamBoolValue
     }
     if( AnscEqualString(ParamName, "Connected_Building_Enabled", TRUE)) {
         if(isVapHotspot(vap_index)) {
-            *pBool = pcfg->u.bss_info.connected_building_enabled;
+            *pBool = pcfg->u.bss_info.managed_wifi_2;
+            wifi_util_info_print(WIFI_DMCLI,"%s:%d: SREESH Connected_Building_Enabled:%d for Hotspot VAP\n",__func__, __LINE__, *pBool);
         } else {
             *pBool = FALSE;
+            wifi_util_info_print(WIFI_DMCLI,"%s:%d: SREESH Connected_Building_Enabled:%d for non-Hotspot VAP\n",__func__, __LINE__, *pBool);
         }
     }
 
@@ -7165,8 +7167,8 @@ AccessPoint_SetParamBoolValue
             CcspWifiTrace(("RDK_LOG_ERROR, %s connected_building_enabled  not supported for vaps other than public vaps\n", __FUNCTION__));
             return FALSE;
         }
-        vapInfo->u.bss_info.connected_building_enabled = bValue;
-        wifi_util_dbg_print(WIFI_DMCLI,"%s:%d: connected_building_enabled Value = %d  \n",__func__, __LINE__, vapInfo->u.bss_info.connected_building_enabled);
+        vapInfo->u.bss_info.managed_wifi_2 = bValue;
+        wifi_util_dbg_print(WIFI_DMCLI,"SREESH %s:%d: connected_building_enabled Value = %d  \n",__func__, __LINE__, vapInfo->u.bss_info.managed_wifi_2);
         set_dml_cache_vap_config_changed(instance_number - 1);
         return TRUE;
     }

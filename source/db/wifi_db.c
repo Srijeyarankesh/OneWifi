@@ -336,6 +336,7 @@ static int init_vap_config_default(int vap_index, wifi_vap_info_t *config,
 
         cfg.u.bss_info.network_initiated_greylist = false;
         cfg.u.bss_info.connected_building_enabled = false;
+        cfg.u.bss_info.managed_wifi_2 = false;
         if (isVapPrivate(vap_index)) {
             cfg.u.bss_info.vapStatsEnable = true;
             cfg.u.bss_info.wpsPushButton = 0;
@@ -683,6 +684,7 @@ int wifidb_get_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
         config->u.bss_info.wps.enable = TRUE;
         config->u.bss_info.hostap_mgt_frame_ctrl = TRUE;
         config->u.bss_info.mbo_enabled = TRUE;
+        config->u.bss_info.managed_wifi_2 = FALSE;
     }
     return ret;
 }

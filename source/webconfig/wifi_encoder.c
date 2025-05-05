@@ -447,7 +447,8 @@ webconfig_error_t encode_vap_common_object(const wifi_vap_info_t *vap_info,
 
 
     //conncted_building_enabled
-    cJSON_AddBoolToObject(vap_object, "Connected_building_enabled", vap_info->u.bss_info.connected_building_enabled);
+    cJSON_AddBoolToObject(vap_object, "Connected_building_enabled", vap_info->u.bss_info.managed_wifi_2);
+    wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Connected Building enabled %d\n", __func__, __LINE__, vap_info->u.bss_info.managed_wifi_2);
 
     // HostapMgtFrameCtrl
     cJSON_AddBoolToObject(vap_object, "HostapMgtFrameCtrl",

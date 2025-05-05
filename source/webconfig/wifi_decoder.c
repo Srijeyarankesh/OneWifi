@@ -1632,10 +1632,12 @@ webconfig_error_t decode_vap_common_object(const cJSON *vap, wifi_vap_info_t *va
     // connected_building_enabled params
     decode_param_allow_empty_bool(vap, "Connected_building_enabled", param, connected_value);
     if (!connected_value) {
-        vap_info->u.bss_info.connected_building_enabled = false;
+        vap_info->u.bss_info.managed_wifi_2 = false;
+        wifi_util_info_print(WIFI_CTRL, "SREESH %s:%d: Connected_building_enabled is not present in json\n", __FUNCTION__, __LINE__);
     } else {
         decode_param_bool(vap, "Connected_building_enabled", param);
-        vap_info->u.bss_info.connected_building_enabled = (param->type & cJSON_True) ? true : false;
+        vap_info->u.bss_info.managed_wifi_2 = (param->type & cJSON_True) ? true : false;
+        wifi_util_info_print(WIFI_CTRL, "SREESH %s:%d: Connected_building_enabled is present in json and value = %d\n", __FUNCTION__, __LINE__,vap_info->u.bss_info.managed_wifi_2);
     }
 
     // HostapMgtFrameCtrl
