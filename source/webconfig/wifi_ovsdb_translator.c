@@ -894,6 +894,8 @@ webconfig_error_t translator_ovsdb_init(webconfig_subdoc_data_t *data)
         default_vap_info->vap_mode = wifi_vap_mode_ap;
         default_vap_info->u.bss_info.enabled = false;
         default_vap_info->u.bss_info.bssMaxSta = 75;
+	default_vap_info->u.bss_info.managed_wifi_2 = false;
+	wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of managed_wifi_2 = %d for VAP name = %s\n",__func__,__LINE__,default_vap_info->u.bss_info.managed_wifi_2,default_vap_info->vap_name);
         snprintf(default_vap_info->u.bss_info.interworking.interworking.hessid,
             sizeof(default_vap_info->u.bss_info.interworking.interworking.hessid),
             "11:22:33:44:55:66");
