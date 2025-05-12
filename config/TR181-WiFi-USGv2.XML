@@ -2292,6 +2292,12 @@ INSTMSMT_PH2 -->
                             <writable>true</writable>
                           </parameter>
                           <parameter>
+                            <name>X_RDKCENTRAL-COM_SpeedTier</name>
+                            <type>string</type>
+                            <syntax>string</syntax>
+                            <writable>true</writable>
+                          </parameter>
+                          <parameter>
                             <name>X_RDKCENTRAL-COM_HostapMgtFrameCtrl</name>
                             <type>boolean</type>
                             <syntax>bool</syntax>

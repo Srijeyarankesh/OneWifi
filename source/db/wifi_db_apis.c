@@ -1008,7 +1008,8 @@ void callback_Wifi_VAP_Config(ovsdb_update_monitor_t *mon,
             l_bss_param_cfg->hostap_mgt_frame_ctrl = new_rec->hostap_mgt_frame_ctrl;
             l_bss_param_cfg->mbo_enabled = new_rec->mbo_enabled;
             l_bss_param_cfg->managed_wifi_2 = new_rec->managed_wifi_2;
-            wifi_util_info_print(WIFI_DB,"%s:%d: Value of l_bss_param_cfg->managed_wifi_2=%s\n",__func__, __LINE__, new_rec->vap_name);
+            l_bss_param_cfg->speed_tier = new_rec->speed_tier;
+            wifi_util_info_print(WIFI_DB,"%s:%d:SREESH Value of l_bss_param_cfg->vap_name=%s l_bss_param_cfg->managed_wifi_2=%d  l_bss_param_cfg->speed_tier=%s\n",__func__, __LINE__, l_bss_param_cfg->vap_name, l_bss_param_cfg->managed_wifi_2 ,l_bss_param_cfg->speed_tier);
             wifi_util_dbg_print(WIFI_DB,
                 "%s:%d:VAP Config radio_name=%s vap_name=%s ssid=%s enabled=%d "
                 "ssid_advertisement_enable=%d isolation_enabled=%d mgmt_power_control=%d "
@@ -2068,7 +2069,7 @@ int wifidb_get_wifi_vap_config(int radio_index, wifi_vap_info_map_t *config,
             wifidb_get_wifi_vap_info(vap_name,&config->vap_array[vap_index],&rdk_config[vap_index]);
             wifi_util_dbg_print(WIFI_DB,"%s:%d: %svap name vap_index=%d radio_ondex=%d\n",__func__, __LINE__,vap_name,vap_index,radio_index);
             wifi_util_dbg_print(WIFI_DB,"%s:%d: table_Wifi_VAP_Config verify count=%d\n",__func__, __LINE__,vap_count);
-            wifi_util_dbg_print(WIFI_DB,"%s:%d:VAP Config Row=%d radio_name=%s radioindex=%d vap_name=%s vap_index=%d ssid=%s enabled=%d ssid_advertisement_enable=%d isolation_enabled=%d mgmt_power_control=%d bss_max_sta =%d bss_transition_activated=%d nbr_report_activated=%d  rapid_connect_enabled=%d rapid_connect_threshold=%d vap_stats_enable=%d mac_filter_enabled =%d mac_filter_mode=%d  wmm_enabled=%d anqpParameters=%s hs2Parameters=%s uapsd_enabled =%d beacon_rate=%d bridge_name=%s wmm_noack = %d wep_key_length = %d bss_hotspot = %d wps_push_button = %d wps_config_methods=%d wps_enabled = %d beacon_rate_ctl =%s network_initiated_greylist=%d repurposed_vap_name=%s exists=%d connected_building_enabled=%d managed_wifi_2=%d\n",__func__, __LINE__,i,name,config->vap_array[vap_index].radio_index,config->vap_array[vap_index].vap_name,config->vap_array[vap_index].vap_index,config->vap_array[vap_index].u.bss_info.ssid,config->vap_array[vap_index].u.bss_info.enabled,config->vap_array[vap_index].u.bss_info.showSsid ,config->vap_array[vap_index].u.bss_info.isolation,config->vap_array[vap_index].u.bss_info.mgmtPowerControl,config->vap_array[vap_index].u.bss_info.bssMaxSta,config->vap_array[vap_index].u.bss_info.bssTransitionActivated,config->vap_array[vap_index].u.bss_info.nbrReportActivated,config->vap_array[vap_index].u.bss_info.rapidReconnectEnable,config->vap_array[vap_index].u.bss_info.rapidReconnThreshold,config->vap_array[vap_index].u.bss_info.vapStatsEnable,config->vap_array[vap_index].u.bss_info.mac_filter_enable,config->vap_array[vap_index].u.bss_info.mac_filter_mode,config->vap_array[vap_index].u.bss_info.wmm_enabled,config->vap_array[vap_index].u.bss_info.interworking.anqp.anqpParameters,config->vap_array[vap_index].u.bss_info.interworking.passpoint.hs2Parameters,config->vap_array[vap_index].u.bss_info.UAPSDEnabled,config->vap_array[vap_index].u.bss_info.beaconRate,config->vap_array[vap_index].bridge_name,config->vap_array[vap_index].u.bss_info.wmmNoAck,config->vap_array[vap_index].u.bss_info.wepKeyLength,config->vap_array[vap_index].u.bss_info.bssHotspot,config->vap_array[vap_index].u.bss_info.wpsPushButton, config->vap_array[vap_index].u.bss_info.wps.methods, config->vap_array[vap_index].u.bss_info.wps.enable, config->vap_array[vap_index].u.bss_info.beaconRateCtl, config->vap_array[vap_index].u.bss_info.network_initiated_greylist, config->vap_array[vap_index].repurposed_vap_name, rdk_config[vap_index].exists,config->vap_array[vap_index].u.bss_info.connected_building_enabled,config->vap_array[vap_index].u.bss_info.managed_wifi_2);
+            wifi_util_dbg_print(WIFI_DB,"%s:%d:VAP Config Row=%d radio_name=%s radioindex=%d vap_name=%s vap_index=%d ssid=%s enabled=%d ssid_advertisement_enable=%d isolation_enabled=%d mgmt_power_control=%d bss_max_sta =%d bss_transition_activated=%d nbr_report_activated=%d  rapid_connect_enabled=%d rapid_connect_threshold=%d vap_stats_enable=%d mac_filter_enabled =%d mac_filter_mode=%d  wmm_enabled=%d anqpParameters=%s hs2Parameters=%s uapsd_enabled =%d beacon_rate=%d bridge_name=%s wmm_noack = %d wep_key_length = %d bss_hotspot = %d wps_push_button = %d wps_config_methods=%d wps_enabled = %d beacon_rate_ctl =%s network_initiated_greylist=%d repurposed_vap_name=%s exists=%d connected_building_enabled=%d managed_wifi_2=%d speed_tier=%s\n",__func__, __LINE__,i,name,config->vap_array[vap_index].radio_index,config->vap_array[vap_index].vap_name,config->vap_array[vap_index].vap_index,config->vap_array[vap_index].u.bss_info.ssid,config->vap_array[vap_index].u.bss_info.enabled,config->vap_array[vap_index].u.bss_info.showSsid ,config->vap_array[vap_index].u.bss_info.isolation,config->vap_array[vap_index].u.bss_info.mgmtPowerControl,config->vap_array[vap_index].u.bss_info.bssMaxSta,config->vap_array[vap_index].u.bss_info.bssTransitionActivated,config->vap_array[vap_index].u.bss_info.nbrReportActivated,config->vap_array[vap_index].u.bss_info.rapidReconnectEnable,config->vap_array[vap_index].u.bss_info.rapidReconnThreshold,config->vap_array[vap_index].u.bss_info.vapStatsEnable,config->vap_array[vap_index].u.bss_info.mac_filter_enable,config->vap_array[vap_index].u.bss_info.mac_filter_mode,config->vap_array[vap_index].u.bss_info.wmm_enabled,config->vap_array[vap_index].u.bss_info.interworking.anqp.anqpParameters,config->vap_array[vap_index].u.bss_info.interworking.passpoint.hs2Parameters,config->vap_array[vap_index].u.bss_info.UAPSDEnabled,config->vap_array[vap_index].u.bss_info.beaconRate,config->vap_array[vap_index].bridge_name,config->vap_array[vap_index].u.bss_info.wmmNoAck,config->vap_array[vap_index].u.bss_info.wepKeyLength,config->vap_array[vap_index].u.bss_info.bssHotspot,config->vap_array[vap_index].u.bss_info.wpsPushButton, config->vap_array[vap_index].u.bss_info.wps.methods, config->vap_array[vap_index].u.bss_info.wps.enable, config->vap_array[vap_index].u.bss_info.beaconRateCtl, config->vap_array[vap_index].u.bss_info.network_initiated_greylist, config->vap_array[vap_index].repurposed_vap_name, rdk_config[vap_index].exists,config->vap_array[vap_index].u.bss_info.connected_building_enabled,config->vap_array[vap_index].u.bss_info.managed_wifi_2, config->vap_array[vap_index].u.bss_info.speed_tier);
 
             (void)memcpy(&interworking, &config->vap_array[vap_index].u.bss_info.interworking.interworking, sizeof(interworking));
             if(!wifidb_get_interworking_config(vap_name,&interworking))
@@ -2571,7 +2572,8 @@ int wifidb_update_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
         cfg.hostap_mgt_frame_ctrl = config->u.bss_info.hostap_mgt_frame_ctrl;
         cfg.mbo_enabled = config->u.bss_info.mbo_enabled;
         cfg.managed_wifi_2 = config->u.bss_info.managed_wifi_2;
-
+        cfg.speed_tier = config->u.bss_info.speed_tier;
+        wifi_util_info_print(WIFI_DB,"%s:%d SREESH Value of vap_name = %s managed_wifi_2 = %d and value of speed_tier = %s\n",__func__,__LINE__,cfg.vap_namecfg.managed_wifi_2,cfg.speed_tier);
         wifi_util_dbg_print(WIFI_DB,
             "%s:%d: VAP Config update data cfg.radio_name=%s cfg.vap_name=%s cfg.ssid=%s "
             "cfg.enabled=%d cfg.advertisement=%d cfg.isolation_enabled=%d "
@@ -5660,6 +5662,8 @@ int wifidb_get_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
             pcfg->beacon_rate_ctl, pcfg->network_initiated_greylist, pcfg->repurposed_vap_name,
             pcfg->connected_building_enabled, pcfg->hostap_mgt_frame_ctrl, pcfg->mbo_enabled, pcfg->managed_wifi_2);
 
+        wifi_util_info_print(WIFI_DB,"%s:%d SREESH Value of vap_name=%s and managed_wifi_2=%d and speed_tier=%s\n",__func__,__LINE__, pcfg->vap_name, pcfg->managed_wifi_2, pcfg->speed_tier);
+
         if((convert_radio_name_to_index(&index,pcfg->radio_name))!=0)
         {
             wifi_util_dbg_print(WIFI_DB,"%s:%d: %s invalid radio name \n",__func__, __LINE__,pcfg->radio_name);
@@ -5750,6 +5754,8 @@ int wifidb_get_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
             config->u.bss_info.hostap_mgt_frame_ctrl = pcfg->hostap_mgt_frame_ctrl;
             config->u.bss_info.mbo_enabled = pcfg->mbo_enabled;
             config->u.bss_info.managed_wifi_2 = pcfg->managed_wifi_2;
+            config->u.bss_info.speed_tier = pcfg->speed_tier;
+            wifi_util_info_print(WIFI_DB,"%s:%d SREESH Value of vap_name=%s and managed_wifi_2=%d and speed_tier=%s\n",__func__,__LINE__, pcfg->vap_name, pcfg->managed_wifi_2, pcfg->speed_tier);
         }
     }
     free(pcfg);
@@ -6607,6 +6613,8 @@ int wifidb_init_vap_config_default(int vap_index, wifi_vap_info_t *config,
         cfg.u.bss_info.network_initiated_greylist = false;
         cfg.u.bss_info.connected_building_enabled = false;
         cfg.u.bss_info.managed_wifi_2 = false;
+        strncpy(cfg.u.bss_info.speed_tier, "0", sizeof(cfg.u.bss_info.speed_tier)-1);
+        wifi_util_info_print(WIFI_DB,"%s:%dSREESH vap_name %s speed_tier %s and managed_wifi_2=%d\n", __func__, __LINE__, cfg.u.bss_info.vap_name, cfg.u.bss_info.speed_tier, cfg.u.bss_info.managed_wifi_2);
         if (isVapPrivate(vap_index)) {
             cfg.u.bss_info.vapStatsEnable = true;
             cfg.u.bss_info.wpsPushButton = 0;

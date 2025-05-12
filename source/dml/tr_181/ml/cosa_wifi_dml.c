@@ -7519,7 +7519,16 @@ AccessPoint_SetParamStringValue
         set_dml_cache_vap_config_changed(instance_number - 1);
         return TRUE;
     }
-	
+
+    rc = strcmp_s("X_RDKCENTRAL-COM_SpeedTier", strlen("X_RDKCENTRAL-COM_SpeedTier"), ParamName, &ind);
+    ERR_CHK(rc);
+    if((rc == EOK) && (!ind))
+    {
+        strncpy(vapInfo->u.bss_info.speed_tier, pString, sizeof(vapInfo->u.bss_info.speed_tier)-1);
+        wifi_util_info_print(WIFI_DMCLI,"SREESH %s:%d: Speed Tier Value = %s\n",__func__, __LINE__, vapInfo->u.bss_info.speed_tier);
+        set_dml_cache_vap_config_changed(instance_number - 1);
+        return TRUE;
+    }
     /* CcspTraceWarning(("Unsupported parameter '%s'\n", ParamName)); */
     return FALSE;
 }

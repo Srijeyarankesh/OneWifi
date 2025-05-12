@@ -145,6 +145,7 @@
         PJS_OVS_BOOL(hostap_mgt_frame_ctrl) \
         PJS_OVS_BOOL(mbo_enabled) \
         PJS_OVS_BOOL(managed_wifi_2) \
+        PJS_OVS_BOOL(speed_tier) \
     )
 
 #define PJS_SCHEMA_Wifi_Interworking_Config \
@@ -2062,7 +2063,8 @@
     COLUMN(connected_building_enabled)\
     COLUMN(hostap_mgt_frame_ctrl) \
     COLUMN(mbo_enabled) \
-    COLUMN(managed_wifi_2) 
+    COLUMN(managed_wifi_2) \
+    COLUMN(speed_tier)
 
 
 #define SCHEMA__Wifi_Interworking_Config "Wifi_Interworking_Config"
@@ -3409,6 +3411,7 @@
 #define SCHEMA__Wifi_VAP_Config__hostap_mgt_frame_ctrl "hostap_mgt_frame_ctrl"
 #define SCHEMA__Wifi_VAP_Config__mbo_enabled "mbo_enabled"
 #define SCHEMA__Wifi_VAP_Config__managed_wifi_2 "managed_wifi_2"
+#define SCHEMA__Wifi_VAP_Config__speed_tier "speed_tier"
 
 #define SCHEMA__Wifi_Interworking_Config__enable "enable"
 #define SCHEMA__Wifi_Interworking_Config__vap_name "vap_name"
