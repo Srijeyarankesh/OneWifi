@@ -240,9 +240,25 @@ static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid, char *bridge
         return -1;
     }
     if (managed_wifi) {
+        int band = 0;
+        int radio_index = get_radio_index_for_vap_index(&(get_wifimgr_obj())->hal_cap.wifi_prop, vap_info->vap_index);
+        wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of vap Index = %d and radio_index = %d\n",__func__,__LINE__,index,radio_index);
+        if (convert_radio_index_to_freq_band(&(get_wifimgr_obj())->hal_cap.wifi_prop, (UINT)radio_index, &band) == RETURN_ERR) {
+            wifi_util_error_print(WIFI_APPS,"%s:%d SREESH failed to convert radio_index=%d to freq_band\n", __func__, __LINE__, radio_index);
+            continue;
+        }
         if (strlen(bridge_name) == 0) {
             wifi_util_dbg_print(WIFI_CTRL,"BridgeName is empty\n");
-            snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan15");
+            if(band == WIFI_FREQUENCY_2_4_BAND) {
+                snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan16");
+            }
+            else if(band == WIFI_FREQUENCY_5_BAND || band == WIFI_FREQUENCY_5_L_BAND) {
+                snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan17");
+            }
+            else {
+                snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan18");
+            }
+            wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d bridge_name is empty and bridge name is %s\n", __func__,__LINE__,vap_info->bridge_name);
         } else {
             wifi_util_dbg_print(WIFI_CTRL,"BridgeName is %s\n",bridge_name);
             snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "%s", bridge_name);
@@ -255,17 +271,29 @@ static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid, char *bridge
             wifi_util_error_print(WIFI_CTRL, "%s: missing \"BssMax\"\n", __func__);
             return -1;
         }
+        
+        for (itrj = 0; itrj < getMaxNumberVAPsPerRadio(radio_index); itrj++) {
+            vap_index = wifi_vap_map->vap_array[itrj].vap_index;
+            if (isVapHotspotSecure(vap_index)) {
+                wifi_radius_settings_t* radius = &wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius;
+                wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH vap_name is %s\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name);
+                vap_info->u.bss_info.security.repurposed_radius = radius;
+                wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual hotspot is vap_name = %s primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name,radius->ip,radius->port,radius->s_ip,radius->s_port);
+                wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual LnF vap Index = %d primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,vap_info->vap_index,vap_info->u.bss_info.security.repurposed_radius.ip,vap_info->u.bss_info.security.repurposed_radius.port,vap_info->u.bss_info.security.repurposed_radius.s_ip,vap_info->u.bss_info.security.repurposed_radius.s_port);
+                break;
+            }
+        }
+        wifi_util_info_print(WIFI_CTRL, "%s: SREESH Have successfully applied the configs \n", __func__);
     }
     return 0;
 }
+
 static int decode_security_blob(wifi_vap_info_t *vap_info, cJSON *security,pErr execRetVal)
 {
     char *value;
     cJSON *param;
     int pass_len =0;
     char encryption_method[128] = "";
-    int radio_index = get_radio_index_for_vap_index(&(get_wifimgr_obj())->hal_cap.wifi_prop, index);
-    wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of vap Index = %d and radio_index = %d\n",__func__,__LINE__,index,radio_index);
     
     wifi_util_info_print(WIFI_CTRL, "Security blob:\n");
     param = cJSON_GetObjectItem(security, "Passphrase");
