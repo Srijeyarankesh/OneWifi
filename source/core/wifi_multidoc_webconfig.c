@@ -254,7 +254,6 @@ static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid, char *bridge
             return -1;
         }
     }
-
     return 0;
 }
 static int decode_security_blob(wifi_vap_info_t *vap_info, cJSON *security,pErr execRetVal)
@@ -265,7 +264,6 @@ static int decode_security_blob(wifi_vap_info_t *vap_info, cJSON *security,pErr 
     char encryption_method[128] = "";
     int radio_index = get_radio_index_for_vap_index(&(get_wifimgr_obj())->hal_cap.wifi_prop, index);
     wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of vap Index = %d and radio_index = %d\n",__func__,__LINE__,index,radio_index);
-
     
     wifi_util_info_print(WIFI_CTRL, "Security blob:\n");
     param = cJSON_GetObjectItem(security, "Passphrase");
@@ -372,6 +370,13 @@ static int decode_security_blob(wifi_vap_info_t *vap_info, cJSON *security,pErr 
     if (validate_private_home_security_param(value,encryption_method,execRetVal) != RETURN_OK) {
         wifi_util_error_print(WIFI_CTRL, "%s: Invalid Encryption Security Combination \n", __func__);
         return RETURN_ERR;
+    }
+    for(int i=0;i<MAX_NUM_VAP_PER_RADIO;i++)
+    {
+        if(isVapHotspot(i))
+        {
+            //Take the hotspot RADIUS config and apply it here to the LnF VAPs.
+        }
     }
     return RETURN_OK;
 }
@@ -527,6 +532,7 @@ static int update_vap_info_managed_guest(void *data, wifi_vap_info_t *vap_info, 
                     status = RETURN_ERR;
                     goto done;
                 }
+
                 if (strlen(repurposed_vap_name) != 0) {
                     strncpy(vap_info->repurposed_vap_name, repurposed_vap_name, (strlen(repurposed_vap_name) + 1));
                 }
@@ -551,7 +557,7 @@ static int update_vap_info_managed_guest(void *data, wifi_vap_info_t *vap_info, 
             wifi_util_info_print(WIFI_CTRL,"SREESH %s: %d speed_tier not found or not a number\n", __func__,__LINE__);
         }
     } else {
-        wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d connected_building_enabled %d \n", __func__,__LINE__,connected_building_enabled);
+        wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d connected_building_enabled = %d \n", __func__,__LINE__,connected_building_enabled);
         snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "br106");
         vap_info->u.bss_info.showSsid = false;
         vap_info->u.bss_info.enabled = true;
