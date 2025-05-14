@@ -637,6 +637,44 @@ void callback_Wifi_Security_Config(ovsdb_update_monitor_t *mon,
         {
             l_security_cfg->u.key.type = new_rec->key_type;
             strncpy(l_security_cfg->u.key.key,new_rec->keyphrase,sizeof(l_security_cfg->u.key.key)-1);
+            if(isVapLnfPsk(i))
+            {
+                wifi_util_info_print(WIFI_DB,"%s:%d: LNF PSK vap %s keyphrase %s\n",__func__, __LINE__,new_rec->vap_name,l_security_cfg->u.key.key);
+                if (strlen(new_rec->radius_server_ip) != 0) {
+                strncpy((char *)l_security_cfg->repurposed_radius.ip,(char *)new_rec->radius_server_ip,sizeof(l_security_cfg->repurposed_radius.ip)-1);
+            }
+            if (strlen(new_rec->secondary_radius_server_ip) != 0) {
+                strncpy((char *)l_security_cfg->repurposed_radius.s_ip,new_rec->secondary_radius_server_ip,sizeof(l_security_cfg->repurposed_radius.s_ip)-1);
+            }
+            l_security_cfg->repurposed_radius.port = new_rec->radius_server_port;
+            if (strlen(new_rec->radius_server_key) != 0) {
+                strncpy(l_security_cfg->repurposed_radius.key,new_rec->radius_server_key,sizeof(l_security_cfg->repurposed_radius.key)-1);
+            }
+            l_security_cfg->repurposed_radius.s_port = new_rec->secondary_radius_server_port;
+            if (strlen(new_rec->secondary_radius_server_key) != 0) {
+                strncpy(l_security_cfg->repurposed_radius.s_key,new_rec->secondary_radius_server_key,sizeof(l_security_cfg->repurposed_radius.s_key)-1);
+            }
+            l_security_cfg->repurposed_radius.max_auth_attempts = new_rec->max_auth_attempts;
+            l_security_cfg->repurposed_radius.blacklist_table_timeout = new_rec->blacklist_table_timeout;
+            l_security_cfg->repurposed_radius.identity_req_retry_interval = new_rec->identity_req_retry_interval;
+            l_security_cfg->repurposed_radius.server_retries = new_rec->server_retries;
+            getIpAddressFromString(new_rec->das_ip,&l_security_cfg->repurposed_radius.dasip);
+            l_security_cfg->repurposed_radius.dasport = new_rec->das_port;
+            if (strlen(new_rec->das_key) != 0) {
+                strncpy(l_security_cfg->repurposed_radius.daskey,new_rec->das_key,sizeof(l_security_cfg->repurposed_radius.daskey)-1);
+            }
+            wifi_util_info_print(WIFI_DB,"%s:%d: SREESH Get Wifi_Security_Config table Sec_mode=%d enc_mode=%d r_ser_ip=%s r_ser_port=%d "
+                "rs_ser_ip=%s rs_ser_ip sec_rad_ser_port=%d vap_name=%s rekey_interval = %d strict_rekey  = %d "
+                "eapol_key_timeout  = %d eapol_key_retries  = %d eap_identity_req_timeout  = %d eap_identity_req_retries  = %d "
+                "eap_req_timeout = %d eap_req_retries = %d disable_pmksa_caching = %d "
+                "identity_req_retry_interval=%d server_retries=%d das_ip = %s das_port=%d ",
+                __func__, __LINE__,l_security_cfg->mode,l_security_cfg->encr,(char *)l_security_cfg->repurposed_radius.ip,
+                l_security_cfg->repurposed_radius.port,(char *)l_security_cfg->repurposed_radius.s_ip,l_security_cfg->repurposed_radius.s_port,
+                new_rec->vap_name,l_security_cfg->rekey_interval,l_security_cfg->strict_rekey,l_security_cfg->eapol_key_timeout,
+                l_security_cfg->eapol_key_retries,l_security_cfg->eap_identity_req_timeout,l_security_cfg->eap_identity_req_retries,l_security_cfg->eap_req_timeout,
+                l_security_cfg->eap_req_retries,l_security_cfg->disable_pmksa_caching,l_security_cfg->repurposed_radius.identity_req_retry_interval,l_security_cfg->repurposed_radius.server_retries,l_security_cfg->repurposed_radius.das_ip);
+        
+            }
         }
         else
         {
@@ -2233,12 +2271,64 @@ int wifidb_get_wifi_security_config(char *vap_name, wifi_vap_security_t *sec)
     if (!security_mode_support_radius(sec->mode)) {
         sec->u.key.type = pcfg->key_type;
         strncpy(sec->u.key.key,pcfg->keyphrase,sizeof(sec->u.key.key)-1);
-        
+        wifi_util_info_print(WIFI_DB,"%s:%d SREESH vap_name = %s",vap_name);
         if (sec->mode != wifi_security_mode_none && sec->mode != wifi_security_mode_enhanced_open) {
             if ((strlen(sec->u.key.key) < MIN_PWD_LEN) || (strlen(sec->u.key.key) > MAX_PWD_LEN)) {
                 wifi_util_error_print(WIFI_DB, "%s:%d: Incorrect password length %d for vap '%s'\n", __func__, __LINE__, strlen(sec->u.key.key), vap_name);
                 strncpy(sec->u.key.key, INVALID_KEY, sizeof(sec->u.key.key));
             }
+        }
+        
+        if(strstr(vap_name,"lnf_psk"))
+        {
+            if (((strlen(pcfg->radius_server_ip) != 0) && (strncmp(pcfg->radius_server_ip, INVALID_IP_STRING, (strlen(INVALID_IP_STRING))) != 0))) {
+            strncpy((char *)sec->u.radius.ip,pcfg->radius_server_ip,sizeof(sec->u.radius.ip)-1);
+            wifi_util_info_print(WIFI_DB,"%s:%d SREESH Primary RADIUS Server IP = %s and DB Value = %s",(char *)sec->u.radius.ip, pcfg->radius_server_ip);
+        } else {
+            wifi_util_error_print(WIFI_DB, "%s:%d SREESH [%s]Invalid radius_server_ip Db value:%s default value:%s\n", __func__, __LINE__, vap_name, pcfg->radius_server_ip, sec->u.radius.ip);
+        }
+        if (pcfg->radius_server_port != 0) {
+            sec->u.radius.port = pcfg->radius_server_port;
+            wifi_util_info_print(WIFI_DB,"%s:%d SREESH Primary RADIUS Server Port = %d and DB Value = %d",sec->u.radius.port, pcfg->radius_server_port);
+        } else {
+            wifi_util_error_print(WIFI_DB, "%s:%d SREESH [%s]Invalid radius_server_port Db value:%d default value:%d\n", __func__, __LINE__, vap_name, pcfg->radius_server_port, sec->u.radius.port);
+        }
+        if (((strlen(pcfg->radius_server_key) != 0) && ((strncmp(pcfg->radius_server_key, INVALID_KEY, (strlen(INVALID_KEY))) != 0) ||
+            (strncmp(pcfg->radius_server_key, "1234", (strlen("1234"))) != 0)))) {
+            strncpy(sec->u.radius.key,pcfg->radius_server_key,sizeof(sec->u.radius.key)-1);
+            wifi_util_info_print(WIFI_DB,"%s:%d SREESH Primary RADIUS Server Key = %s and DB Value = %s",sec->u.radius.key, pcfg->radius_server_key);
+        } else {
+            wifi_util_error_print(WIFI_DB, "%s:%d SREESH [%s]Invalid radius_server_key, used default key\n", __func__, __LINE__, vap_name);
+        }
+
+        if (((strlen(pcfg->secondary_radius_server_ip) != 0) && (strncmp(pcfg->secondary_radius_server_ip, INVALID_IP_STRING, (strlen(INVALID_IP_STRING))) != 0))) {
+            strncpy((char *)sec->u.radius.s_ip,pcfg->secondary_radius_server_ip,sizeof(sec->u.radius.s_ip)-1);
+            wifi_util_info_print(WIFI_DB,"%s:%d SREESH Secondary RADIUS Server IP = %s and DB Value = %s",sec->u.radius.s_ip, pcfg->secondary_radius_server_ip);
+        } else {
+            wifi_util_error_print(WIFI_DB, "%s:%d SREESH [%s]Invalid secondary_radius_server_ip Db value:%s default value:%s\n", __func__, __LINE__, vap_name, pcfg->secondary_radius_server_ip, sec->u.radius.s_ip);
+        }
+        if (pcfg->secondary_radius_server_port != 0) {
+            sec->u.radius.s_port = pcfg->secondary_radius_server_port;
+            wifi_util_info_print(WIFI_DB,"%s:%d SREESH Secondary RADIUS Server Port = %d and DB Value = %d",sec->u.radius.s_port, pcfg->secondary_radius_server_port);
+        } else {
+            wifi_util_error_print(WIFI_DB, "%s:%d SREESH [%s]Invalid S_radius_server_port Db value:%d default value:%d\n", __func__, __LINE__, vap_name, pcfg->secondary_radius_server_port, sec->u.radius.s_port);
+        }
+        if (((strlen(pcfg->secondary_radius_server_key) != 0) && ((strncmp(pcfg->secondary_radius_server_key, INVALID_KEY, (strlen(INVALID_KEY))) != 0) ||
+            (strncmp(pcfg->secondary_radius_server_key, "1234", (strlen("1234"))) != 0)))) {
+            strncpy(sec->u.radius.s_key,pcfg->secondary_radius_server_key,sizeof(sec->u.radius.s_key)-1);
+            wifi_util_info_print(WIFI_DB,"%s:%d SREESH Secondary RADIUS Server Key = %s and DB Value = %s",sec->u.radius.s_key, pcfg->secondary_radius_server_key);
+        } else {
+            wifi_util_error_print(WIFI_DB, "%s:%d SREESH [%s]Invalid secondary_radius_server_key, used default key\n", __func__, __LINE__, vap_name);
+        }
+        sec->u.radius.max_auth_attempts = pcfg->max_auth_attempts;
+        sec->u.radius.blacklist_table_timeout = pcfg->blacklist_table_timeout;
+        sec->u.radius.identity_req_retry_interval = pcfg->identity_req_retry_interval;
+        sec->u.radius.server_retries = pcfg->server_retries;
+        getIpAddressFromString(pcfg->das_ip,&sec->u.radius.dasip);
+        sec->u.radius.dasport = pcfg->das_port;
+        if (strlen(pcfg->das_key) != 0) {
+            strncpy(sec->u.radius.daskey,pcfg->das_key,sizeof(sec->u.radius.daskey)-1);
+        }
         }
     }
     else {
@@ -5836,21 +5926,45 @@ int wifidb_update_wifi_security_config(char *vap_name, wifi_vap_security_t *sec)
 
     if (!security_mode_support_radius(sec->mode))
     {
-        strncpy(cfg_sec.radius_server_ip,"",sizeof(cfg_sec.radius_server_ip)-1);
-        cfg_sec.radius_server_port = 0;
-        strncpy(cfg_sec.radius_server_key, "",sizeof(cfg_sec.radius_server_key)-1);
-        strncpy(cfg_sec.secondary_radius_server_ip,"",sizeof(cfg_sec.secondary_radius_server_ip)-1);
-        cfg_sec.secondary_radius_server_port = 0;
-        strncpy(cfg_sec.secondary_radius_server_key, "",sizeof(cfg_sec.secondary_radius_server_key)-1);
-        cfg_sec.key_type = sec->u.key.type;
-        strncpy(cfg_sec.keyphrase,sec->u.key.key,sizeof(cfg_sec.keyphrase)-1);
-        cfg_sec.max_auth_attempts = 0;
-        cfg_sec.blacklist_table_timeout = 0;
-        cfg_sec.identity_req_retry_interval = 0;
-        cfg_sec.server_retries = 0;
-        strncpy(cfg_sec.das_ip,"",sizeof(cfg_sec.das_ip)-1);
-        cfg_sec.das_port = 0;
-        strncpy(cfg_sec.das_key, "",sizeof(cfg_sec.das_key)-1);
+        if(strstr(vap_name,"lnf_psk"))
+        {
+            wifi_util_info_print(WIFI_DB,"%s:%d SREESH Inside the lnf_psk vap %s",__FUNCTION__,__LINE__,vap_name);
+            strncpy(cfg_sec.radius_server_ip,(char *)sec->repurposed_radius.ip,sizeof(cfg_sec.radius_server_ip)-1);
+            cfg_sec.radius_server_port = (int)sec->repurposed_radius.port;
+            strncpy(cfg_sec.radius_server_key, sec->repurposed_radius.key,sizeof(cfg_sec.radius_server_key)-1);
+            strncpy(cfg_sec.secondary_radius_server_ip,(char *)sec->repurposed_radius.s_ip,sizeof(cfg_sec.secondary_radius_server_ip)-1);
+            cfg_sec.secondary_radius_server_port =(int)sec->repurposed_radius.s_port;
+            strncpy(cfg_sec.secondary_radius_server_key, sec->repurposed_radius.s_key,sizeof(cfg_sec.secondary_radius_server_key)-1);
+            cfg_sec.key_type = 0;
+            strncpy(cfg_sec.keyphrase,"",sizeof(cfg_sec.keyphrase)-1);
+            cfg_sec.max_auth_attempts = (int)sec->repurposed_radius.max_auth_attempts;
+            cfg_sec.blacklist_table_timeout = (int)sec->repurposed_radius.blacklist_table_timeout;
+            cfg_sec.identity_req_retry_interval = (int)sec->repurposed_radius.identity_req_retry_interval;
+            cfg_sec.server_retries = (int)sec->repurposed_radius.server_retries;
+	        getIpStringFromAdrress(address,&sec->repurposed_radius.dasip);
+	        strncpy(cfg_sec.das_ip,address,sizeof(cfg_sec.das_ip)-1);
+            cfg_sec.das_port = sec->repurposed_radius.dasport;
+            strncpy(cfg_sec.das_key,sec->repurposed_radius.daskey,sizeof(cfg_sec.das_key)-1);
+        }
+        else
+        {
+            wifi_util_info_print(WIFI_DB,"%s:%d SREESH Inside the else condition of strstr(vap_name,lnf_psk) vap %s",__FUNCTION__,__LINE__,vap_name);
+            strncpy(cfg_sec.radius_server_ip,"",sizeof(cfg_sec.radius_server_ip)-1);
+            cfg_sec.radius_server_port = 0;
+            strncpy(cfg_sec.radius_server_key, "",sizeof(cfg_sec.radius_server_key)-1);
+            strncpy(cfg_sec.secondary_radius_server_ip,"",sizeof(cfg_sec.secondary_radius_server_ip)-1);
+            cfg_sec.secondary_radius_server_port = 0;
+            strncpy(cfg_sec.secondary_radius_server_key, "",sizeof(cfg_sec.secondary_radius_server_key)-1);
+            cfg_sec.key_type = sec->u.key.type;
+            strncpy(cfg_sec.keyphrase,sec->u.key.key,sizeof(cfg_sec.keyphrase)-1);
+            cfg_sec.max_auth_attempts = 0;
+            cfg_sec.blacklist_table_timeout = 0;
+            cfg_sec.identity_req_retry_interval = 0;
+            cfg_sec.server_retries = 0;
+            strncpy(cfg_sec.das_ip,"",sizeof(cfg_sec.das_ip)-1);
+            cfg_sec.das_port = 0;
+            strncpy(cfg_sec.das_key, "",sizeof(cfg_sec.das_key)-1);
+        }
     }
     else
     {
