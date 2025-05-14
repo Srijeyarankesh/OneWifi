@@ -673,7 +673,6 @@ void callback_Wifi_Security_Config(ovsdb_update_monitor_t *mon,
                 new_rec->vap_name,l_security_cfg->rekey_interval,l_security_cfg->strict_rekey,l_security_cfg->eapol_key_timeout,
                 l_security_cfg->eapol_key_retries,l_security_cfg->eap_identity_req_timeout,l_security_cfg->eap_identity_req_retries,l_security_cfg->eap_req_timeout,
                 l_security_cfg->eap_req_retries,l_security_cfg->disable_pmksa_caching,l_security_cfg->repurposed_radius.identity_req_retry_interval,l_security_cfg->repurposed_radius.server_retries,l_security_cfg->repurposed_radius.das_ip);
-        
             }
         }
         else

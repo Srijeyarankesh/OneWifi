@@ -72,9 +72,9 @@ static int webconf_rollback_handler(void)
 static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid,char *bridge_name,bool managed_wifi, pErr execRetVal);
 static int decode_security_blob(wifi_vap_info_t *vap_info, cJSON *security, pErr execRetVal);
 static int update_vap_info(void *data, wifi_vap_info_t *vap_info, pErr execRetVal);
-static int update_vap_info_managed_guest(void *data, wifi_vap_info_t *vap_info, char *bridge_name,bool connected_building_enabled, pErr execRetVal);
+static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_vap_info_t *vap_info, char *bridge_name,bool connected_building_enabled, pErr execRetVal);
 static int update_vap_info_managed_xfinity(void *data, wifi_vap_info_t *vap_info,pErr execRetVal);
-static int update_vap_info_with_blob_info(void *blob, webconfig_subdoc_data_t *data, const char *vap_prefix, bool managed_wifi, pErr execRetVal);
+static int update_vap_info_with_blob_info(void *blob, void* amenities_blob, webconfig_subdoc_data_t *data, const char *vap_prefix, bool managed_wifi, pErr execRetVal);
 static int push_blob_data(webconfig_subdoc_data_t *data, webconfig_subdoc_type_t subdoc_type);
 static pErr create_execRetVal(void);
 static pErr private_home_exec_common_handler(void *blob, const char *vap_prefix, webconfig_subdoc_type_t subdoc_type);
@@ -271,19 +271,6 @@ static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid, char *bridge
             wifi_util_error_print(WIFI_CTRL, "%s: missing \"BssMax\"\n", __func__);
             return -1;
         }
-        
-        for (itrj = 0; itrj < getMaxNumberVAPsPerRadio(radio_index); itrj++) {
-            vap_index = wifi_vap_map->vap_array[itrj].vap_index;
-            if (isVapHotspotSecure(vap_index)) {
-                wifi_radius_settings_t* radius = &wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius;
-                wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH vap_name is %s\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name);
-                vap_info->u.bss_info.security.repurposed_radius = radius;
-                wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual hotspot is vap_name = %s primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name,radius->ip,radius->port,radius->s_ip,radius->s_port);
-                wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual LnF vap Index = %d primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,vap_info->vap_index,vap_info->u.bss_info.security.repurposed_radius.ip,vap_info->u.bss_info.security.repurposed_radius.port,vap_info->u.bss_info.security.repurposed_radius.s_ip,vap_info->u.bss_info.security.repurposed_radius.s_port);
-                break;
-            }
-        }
-        wifi_util_info_print(WIFI_CTRL, "%s: SREESH Have successfully applied the configs \n", __func__);
     }
     return 0;
 }
@@ -402,13 +389,6 @@ static int decode_security_blob(wifi_vap_info_t *vap_info, cJSON *security,pErr 
         wifi_util_error_print(WIFI_CTRL, "%s: Invalid Encryption Security Combination \n", __func__);
         return RETURN_ERR;
     }
-    for(int i=0;i<MAX_NUM_VAP_PER_RADIO;i++)
-    {
-        if(isVapHotspot(i))
-        {
-            //Take the hotspot RADIUS config and apply it here to the LnF VAPs.
-        }
-    }
     return RETURN_OK;
 }
 static int update_vap_info(void *data, wifi_vap_info_t *vap_info,pErr execRetVal)
@@ -490,7 +470,7 @@ done:
     return status;
 }
 
-static int update_vap_info_managed_guest(void *data, wifi_vap_info_t *vap_info, char * bridge_name,bool connected_building_enabled,pErr execRetVal)
+static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_vap_info_t *vap_info, char * bridge_name,bool connected_building_enabled,pErr execRetVal)
 {
     int status = RETURN_OK;
     cJSON *root = NULL;
@@ -566,26 +546,44 @@ static int update_vap_info_managed_guest(void *data, wifi_vap_info_t *vap_info, 
 
                 if (strlen(repurposed_vap_name) != 0) {
                     strncpy(vap_info->repurposed_vap_name, repurposed_vap_name, (strlen(repurposed_vap_name) + 1));
+                    for (itrj = 0; itrj < getMaxNumberVAPsPerRadio(radio_index); itrj++) {
+                        vap_index = wifi_vap_map->vap_array[itrj].vap_index;
+                        if (isVapHotspotSecure(vap_index)) {
+                        wifi_radius_settings_t* radius = &wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius;
+                        wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH vap_name is %s\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name);
+                        vap_info->u.bss_info.security.repurposed_radius = radius;
+                        wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual hotspot is vap_name = %s primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name,radius->ip,radius->port,radius->s_ip,radius->s_port);
+                        wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual LnF vap Index = %d primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,vap_info->vap_index,vap_info->u.bss_info.security.repurposed_radius.ip,vap_info->u.bss_info.security.repurposed_radius.port,vap_info->u.bss_info.security.repurposed_radius.s_ip,vap_info->u.bss_info.security.repurposed_radius.s_port);
+                        break;
+                        }
+                    }
+                    wifi_util_info_print(WIFI_CTRL, "%s: SREESH Have successfully applied the configs \n", __func__);
                 }
             }
         }
-
-        cJSON *amenities = cJSON_GetObjectItem(root, "AmenitiesNetworkConfig");
-        if (amenities == NULL) {
-            wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d amenities is NULL \n", __func__,__LINE__);
-            return RETURN_ERR;
-        }
-        cJSON *networkparams = cJSON_GetObjectItem(amenities, "NetworkParams");
-        if (networkparams == NULL) {
-            wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d networkparams is NULL \n", __func__,__LINE__);
-            return RETURN_ERR;
-        }
-        cJSON *speedtier = cJSON_GetObjectItem(network_params, "speed_tier");
-        if (speedtier && cJSON_IsNumber(speedtier)) {
-            sprintf(vap_info->u.bss_info.speed_tier,"%s", speedtier->valueint);
-            wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH speed_tier: %d and vap name is vap_info->vap_name = %s and vap_info->u.bss_info.speed_tier = %s\n",__func__,__LINE__,speedtier->valueint,vap_info->vap_name,vap_info->u.bss_info.speed_tier);
-        } else {
+        if(amenities_blob != NULL) {
+            wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d amenities_blob is not NULL \n", __func__,__LINE__);
+            cJSON *amenities = cJSON_GetObjectItem(root, "AmenitiesNetworkConfig");
+            if (amenities == NULL) {
+                wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d amenities is NULL \n", __func__,__LINE__);
+                return RETURN_ERR;
+            }
+            cJSON *networkparams = cJSON_GetObjectItem(amenities, "NetworkParams");
+            if (networkparams == NULL) {
+                wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d networkparams is NULL \n", __func__,__LINE__);
+                return RETURN_ERR;
+            }
+            cJSON *speedtier = cJSON_GetObjectItem(network_params, "speed_tier");
+            if (speedtier && cJSON_IsNumber(speedtier)) {
+                sprintf(vap_info->u.bss_info.speed_tier,"%s", speedtier->valueint);
+                wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH speed_tier: %d and vap name is vap_info->vap_name = %s and vap_info->u.bss_info.speed_tier = %s\n",__func__,__LINE__,speedtier->valueint,vap_info->vap_name,vap_info->u.bss_info.speed_tier);
+            } else {
             wifi_util_info_print(WIFI_CTRL,"SREESH %s: %d speed_tier not found or not a number\n", __func__,__LINE__);
+            }
+        }
+        else
+        {
+            wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d amenities_blob is NULL \n", __func__,__LINE__);
         }
     } else {
         wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d connected_building_enabled = %d \n", __func__,__LINE__,connected_building_enabled);
@@ -640,7 +638,7 @@ static int update_vap_info_managed_xfinity(void *data, wifi_vap_info_t *vap_info
     return status;
 }
 
-static int update_vap_info_with_blob_info(void *blob, webconfig_subdoc_data_t *data, const char *vap_prefix, bool managed_wifi_enabled,pErr execRetVal)
+static int update_vap_info_with_blob_info(void *blob, void* amenities_blob, webconfig_subdoc_data_t *data, const char *vap_prefix, bool managed_wifi_enabled,pErr execRetVal)
 {
     int status = RETURN_OK;
     int num_vaps = 0;
@@ -690,7 +688,7 @@ static int update_vap_info_with_blob_info(void *blob, webconfig_subdoc_data_t *d
                 break;
             }
         } else if (!strcmp(vap_prefix,"lnf_psk")) {
-            if(update_vap_info_managed_guest(blob, &data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index], brval,managed_wifi_enabled, execRetVal) == RETURN_ERR) {
+            if(update_vap_info_managed_guest(blob, amenities_blob, &data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index], brval,managed_wifi_enabled, execRetVal) == RETURN_ERR) {
                 status = RETURN_ERR;
                 break;
             }
@@ -747,7 +745,7 @@ static pErr private_home_exec_common_handler(void *blob, const char *vap_prefix,
     }
     webconfig_init_subdoc_data(data);
 
-    if (update_vap_info_with_blob_info(blob, data, vap_prefix, false, execRetVal) != 0) {
+    if (update_vap_info_with_blob_info(blob, NULL, data, vap_prefix, false, execRetVal) != 0) {
         wifi_util_error_print(WIFI_CTRL, "%s: json parse failure\n", __func__);
         execRetVal->ErrorCode = VALIDATION_FALIED;
         goto done;
@@ -768,7 +766,7 @@ done:
     return execRetVal;
 }
 
-static int connected_subdoc_handler(void *blob, char *vap_prefix, webconfig_subdoc_type_t subdoc_type,bool  managed_wifi_enabled, pErr execRetVal)
+static int connected_subdoc_handler(void *blob, void *amenities_blob, const char *vap_prefix, webconfig_subdoc_type_t subdoc_type,bool  managed_wifi_enabled, pErr execRetVal)
 {
     int ret = RETURN_ERR;
     wifi_vap_name_t vap_names[MAX_NUM_RADIOS];
@@ -793,7 +791,7 @@ static int connected_subdoc_handler(void *blob, char *vap_prefix, webconfig_subd
 
     webconfig_init_subdoc_data(data);
 
-    if (update_vap_info_with_blob_info(blob, data, vap_prefix, managed_wifi_enabled, execRetVal) != 0) {
+    if (update_vap_info_with_blob_info(blob, amenities_blob, data, vap_prefix, managed_wifi_enabled, execRetVal) != 0) {
         wifi_util_error_print(WIFI_CTRL, "%s: json parse failure\n", __func__);
         execRetVal->ErrorCode = VALIDATION_FALIED;
         goto done;
@@ -1417,18 +1415,6 @@ pErr webconf_process_managed_subdoc(void* data)
     connected_wifi_enabled = cJSON_IsTrue(managed_wifi_enabled)? true : false;
     wifi_util_dbg_print(WIFI_CTRL,"managed_wifi_enabled is %d\n",connected_wifi_enabled);
 
-    cJSON *amenities_blob = cJSON_GetObjectItem(root, "AmenitiesNetworkConfig");
-    if (amenities_blob == NULL) {
-        msgpack_zone_destroy(&msg_z);
-        execRetVal->ErrorCode = VALIDATION_FALIED;
-        strncpy(execRetVal->ErrorMsg, "Failed to detach amenities_blob", sizeof(execRetVal->ErrorMsg)-1);
-        free(blob_buf);
-        free(msg);
-        cJSON_Delete(root);
-        wifi_util_error_print(WIFI_CTRL, "%s:SREESH Failed to detach amenities_blob\n", __func__);
-        return execRetVal;
-    }
-
     cJSON *vap_blob = cJSON_DetachItemFromObject(root, "WifiVapConfig");
     if(vap_blob == NULL) {
         msgpack_zone_destroy(&msg_z);
@@ -1441,17 +1427,19 @@ pErr webconf_process_managed_subdoc(void* data)
         return execRetVal;
     }
 
-    cJSON *combined = cJSON_CreateObject();
-    if(combines == NULL)
-    {
-        wifi_util_info_print(WIFI_CTRL, "%s:SREESH Failed to create combined json object\n", __func__);
+    cJSON *amenities_blob = cJSON_GetObjectItem(root, "AmenitiesNetworkConfig");
+    if (amenities_blob == NULL) {
+        msgpack_zone_destroy(&msg_z);
+        execRetVal->ErrorCode = VALIDATION_FALIED;
+        strncpy(execRetVal->ErrorMsg, "Failed to detach amenities_blob", sizeof(execRetVal->ErrorMsg)-1);
+        free(blob_buf);
+        free(msg);
+        cJSON_Delete(root);
+        wifi_util_error_print(WIFI_CTRL, "%s:SREESH Failed to detach amenities_blob\n", __func__);
+        return execRetVal;
     }
-    cJSON_AddItemToObject(combined, "WifiVapConfig", wifiVapConfig);
-    cJSON_AddItemToObject(combined, "AmenitiesNetworkConfig", amenitiesNetworkConfig);
-    char *out = cJSON_Print(combined);
-    wifi_util_info_print(WIFI_CTRL, "%s:SREESH combined json object is %s\n", __func__, out);
 
-    ret = connected_subdoc_handler(combined, VAP_PREFIX_LNF_PSK, webconfig_subdoc_type_lnf, connected_wifi_enabled,  execRetVal);
+    ret = connected_subdoc_handler(vap_blob, amenities_blob, VAP_PREFIX_LNF_PSK, webconfig_subdoc_type_lnf, connected_wifi_enabled,  execRetVal);
     if (ret != RETURN_OK) {
         msgpack_zone_destroy(&msg_z);
         execRetVal->ErrorCode = VALIDATION_FALIED;
@@ -1473,7 +1461,7 @@ pErr webconf_process_managed_subdoc(void* data)
         return execRetVal;
     }
 
-    ret = connected_subdoc_handler(xfinity_blob, VAP_PREFIX_HOTSPOT, webconfig_subdoc_type_xfinity, connected_wifi_enabled, execRetVal);
+    ret = connected_subdoc_handler(xfinity_blob, NULL, VAP_PREFIX_HOTSPOT, webconfig_subdoc_type_xfinity, connected_wifi_enabled, execRetVal);
     if (ret != RETURN_OK) {
         msgpack_zone_destroy(&msg_z);
         execRetVal->ErrorCode = VALIDATION_FALIED;
@@ -1581,11 +1569,11 @@ void process_managed_wifi_disable ()
     cJSON_AddBoolToObject(managed_blob, "connected_building_enabled", false);
 
 
-    ret = connected_subdoc_handler(managed_blob, VAP_PREFIX_LNF_PSK, webconfig_subdoc_type_lnf, false,  execRetVal);
+    ret = connected_subdoc_handler(managed_blob, NULL, VAP_PREFIX_LNF_PSK, webconfig_subdoc_type_lnf, false,  execRetVal);
     if (ret != RETURN_OK) {
         wifi_util_error_print(WIFI_CTRL, "%s:Managed LNF vaps were not disabled \n", __func__);
     }
-    ret = connected_subdoc_handler(managed_blob, VAP_PREFIX_HOTSPOT, webconfig_subdoc_type_xfinity, false, execRetVal);
+    ret = connected_subdoc_handler(managed_blob, NULL, VAP_PREFIX_HOTSPOT, webconfig_subdoc_type_xfinity, false, execRetVal);
     if (ret != RETURN_OK) {
         wifi_util_error_print(WIFI_CTRL, "%s:Managed xfinity vaps were not disabled \n", __func__);
     }
