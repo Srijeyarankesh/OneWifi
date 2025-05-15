@@ -507,7 +507,7 @@ int get_managed_guest_bridge(char *brval, unsigned long length,unsigned int radi
     return RETURN_ERR;
 }
 
-int set_managed_guest_interfaces(char *interface_name, unisgned int radio_index)
+int set_managed_guest_interfaces(char *interface_name, unsigned int radio_index)
 {
     bus_error_t rc;
     wifi_mgr_t *g_wifi_mgr = get_wifimgr_obj();
