@@ -72,7 +72,7 @@ static int webconf_rollback_handler(void)
 static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid,char *bridge_name,bool managed_wifi, pErr execRetVal);
 static int decode_security_blob(wifi_vap_info_t *vap_info, cJSON *security, pErr execRetVal);
 static int update_vap_info(void *data, wifi_vap_info_t *vap_info, pErr execRetVal);
-static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_vap_info_t *vap_info, char *bridge_name,bool connected_building_enabled, pErr execRetVal);
+static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_vap_info_t *vap_info, char *bridge_name,bool connected_building_enabled, unsigned int radio_index, pErr execRetVal);
 static int update_vap_info_managed_xfinity(void *data, wifi_vap_info_t *vap_info,pErr execRetVal);
 static int update_vap_info_with_blob_info(void *blob, void* amenities_blob, webconfig_subdoc_data_t *data, const char *vap_prefix, bool managed_wifi, pErr execRetVal);
 static int push_blob_data(webconfig_subdoc_data_t *data, webconfig_subdoc_type_t subdoc_type);
@@ -467,7 +467,7 @@ done:
     return status;
 }
 
-static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_vap_info_t *vap_info, char * bridge_name,bool connected_building_enabled,pErr execRetVal)
+static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_vap_info_t *vap_info, char * bridge_name,bool connected_building_enabled, unsigned int radio_index, pErr execRetVal)
 {
     int status = RETURN_OK;
     cJSON *root = NULL;
@@ -544,8 +544,6 @@ static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_
                 if (strlen(repurposed_vap_name) != 0) {
                     strncpy(vap_info->repurposed_vap_name, repurposed_vap_name, (strlen(repurposed_vap_name) + 1));
                     //See if below code can be optimized
-                    unsigned int radio_index;
-                    radio_index = get_radio_index_for_vap_index(&(get_wifimgr_obj())->hal_cap.wifi_prop, vap_info->vap_index);
                     wifi_vap_info_map_t* vap_info_map = get_wifidb_vap_map(radio_index);
                     for (uint8_t itrj = 0; itrj < getMaxNumberVAPsPerRadio(radio_index); itrj++) {
                         if (isVapHotspotSecure(vap_info_map->vap_array[itrj].vap_index) && vap_info_map->vap_array[itrj].u.bss_info.enabled) {
@@ -674,7 +672,6 @@ static int update_vap_info_with_blob_info(void *blob, void* amenities_blob, webc
         }
 
         memset(brval,0,sizeof(brval));
-        unsigned int radio_index = get_radio_index_for_vap_index(&data->u.decoded.hal_cap.wifi_prop, vap_index);
         if (!strcmp(vap_prefix,"lnf_psk")) {
             rc = get_managed_guest_bridge(&brval, sizeof(brval), radio_index);
             if ( rc != 0) {
@@ -698,7 +695,7 @@ static int update_vap_info_with_blob_info(void *blob, void* amenities_blob, webc
                 break;
             }
         } else if (!strcmp(vap_prefix,"lnf_psk")) {
-            if(update_vap_info_managed_guest(blob, amenities_blob, &data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index], brval,managed_wifi_enabled, execRetVal) == RETURN_ERR) {
+            if(update_vap_info_managed_guest(blob, amenities_blob, &data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index], brval,managed_wifi_enabled, radio_index,execRetVal) == RETURN_ERR) {
                 status = RETURN_ERR;
                 break;
             }
