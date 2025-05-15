@@ -145,7 +145,7 @@
         PJS_OVS_BOOL(hostap_mgt_frame_ctrl) \
         PJS_OVS_BOOL(mbo_enabled) \
         PJS_OVS_BOOL(managed_wifi_2) \
-        PJS_OVS_BOOL(speed_tier) \
+        PJS_OVS_STRING(speed_tier, 8 + 1) \
     )
 
 #define PJS_SCHEMA_Wifi_Interworking_Config \

@@ -241,18 +241,15 @@ static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid, char *bridge
     }
     if (managed_wifi) {
         int band = 0;
-        int radio_index = get_radio_index_for_vap_index(&(get_wifimgr_obj())->hal_cap.wifi_prop, vap_info->vap_index);
-        wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of vap Index = %d and radio_index = %d\n",__func__,__LINE__,index,radio_index);
-        if (convert_radio_index_to_freq_band(&(get_wifimgr_obj())->hal_cap.wifi_prop, (UINT)radio_index, &band) == RETURN_ERR) {
-            wifi_util_error_print(WIFI_APPS,"%s:%d SREESH failed to convert radio_index=%d to freq_band\n", __func__, __LINE__, radio_index);
-            return -1;
-        }
+        char last_two[3]; 
+        strncpy(last_two, vap_info->u.bss_info.ssid + strlen(vap_info->u.bss_info.ssid) - 2, 2);
+        last_two[2] = '\0';
         if (strlen(bridge_name) == 0) {
             wifi_util_dbg_print(WIFI_CTRL,"BridgeName is empty\n");
-            if(band == WIFI_FREQUENCY_2_4_BAND) {
+            if(!strcmp(last_two, NAME_FREQUENCY_2_4_G)) {
                 snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan16");
             }
-            else if(band == WIFI_FREQUENCY_5_BAND || band == WIFI_FREQUENCY_5L_BAND) {
+            else if(!strcmp(last_two, NAME_FREQUENCY_5) || !strcmp(last_two, NAME_FREQUENCY_5L_G)) {
                 snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan17");
             }
             else {
@@ -546,9 +543,10 @@ static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_
 
                 if (strlen(repurposed_vap_name) != 0) {
                     strncpy(vap_info->repurposed_vap_name, repurposed_vap_name, (strlen(repurposed_vap_name) + 1));
+                    //See if below code can be optimized
                     unsigned int radio_index;
                     radio_index = get_radio_index_for_vap_index(&(get_wifimgr_obj())->hal_cap.wifi_prop, vap_info->vap_index);
-                    wifi_vap_info_t* vap_info_map = get_wifidb_vap_map(itr);
+                    wifi_vap_info_map_t* vap_info_map = get_wifidb_vap_map(radio_index);
                     for (uint8_t itrj = 0; itrj < getMaxNumberVAPsPerRadio(radio_index); itrj++) {
                         if (isVapHotspotSecure(vap_info_map->vap_array[itrj].vap_index) && vap_info_map->vap_array[itrj].u.bss_info.enabled) {
                             wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH vap_name is %s\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name);
@@ -652,16 +650,6 @@ static int update_vap_info_with_blob_info(void *blob, void* amenities_blob, webc
     wifi_vap_name_t vap_names_xfinity[MAX_NUM_RADIOS * 2];
     char brval[32];
 
-
-    memset(brval,0,sizeof(brval));
-    if (!strcmp(vap_prefix,"lnf_psk")) {
-        rc = get_managed_guest_bridge(&brval, sizeof(brval));
-        if ( rc != 0) {
-            wifi_util_dbg_print(WIFI_CTRL,"SREESH Managed wifi bridge not found\n");
-            strncpy(brval,"brlan15",sizeof(brval)-1);
-        }
-    }
-
     if (!strcmp(vap_prefix,"hotspot")){
         /* get a list of VAP names */
         num_vaps= get_list_of_hotspot_open(&data->u.decoded.hal_cap.wifi_prop, MAX_NUM_RADIOS, vap_names_xfinity);
@@ -683,6 +671,25 @@ static int update_vap_info_with_blob_info(void *blob, void* amenities_blob, webc
         status = get_vap_and_radio_index_from_vap_instance(&data->u.decoded.hal_cap.wifi_prop, vap_index, (uint8_t *)&radio_index, (uint8_t *)&vap_array_index);
         if (status == RETURN_ERR) {
             break;
+        }
+
+        memset(brval,0,sizeof(brval));
+        unsigned int radio_index = get_radio_index_for_vap_index(&data->u.decoded.hal_cap.wifi_prop, vap_index);
+        if (!strcmp(vap_prefix,"lnf_psk")) {
+            rc = get_managed_guest_bridge(&brval, sizeof(brval), radio_index);
+            if ( rc != 0) {
+                wifi_util_dbg_print(WIFI_CTRL,"SREESH Managed wifi bridge not found\n");
+                char radio_name[32];
+                int k = convert_radio_index_to_name(radio_index, radio_name);
+                if(strcmp(radio_name,"radio1") == 0) {
+                    snprintf(brval, sizeof(brval), "brlan16");
+                } else if (strcmp(radio_name,"radio2") == 0) {
+                    snprintf(brval, sizeof(brval), "brlan17");
+                } else if (strcmp(radio_name,"radio3") == 0) {
+                    snprintf(brval, sizeof(brval), "brlan18");
+                }
+                wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d managed_wifi bridge name is not found and default bridge name is %s\n", __func__,__LINE__,brval);
+            }
         }
         /* fill the VAP info with current settings */
         if (!strcmp(vap_prefix,"hotspot")) {
@@ -826,7 +833,9 @@ static int connected_subdoc_handler(void *blob, void *amenities_blob, const char
             }
         }
         wifi_util_info_print(WIFI_CTRL, "managed_interfaces = %s and lnf_psk_ifname=%s\n",managed_interfaces,(char *)lnf_psk_ifname);
-        set_managed_guest_interfaces(managed_interfaces);
+        unsigned int radio_index = get_radio_index_for_vap_index(&data->u.decoded.hal_cap.wifi_prop, vap_index);
+        wifi_util_info_print(WIFI_CTRL, "SREESH %s: radio_index = %d vap_index = %d\n", __func__,radio_index,vap_index);
+        set_managed_guest_interfaces(managed_interfaces,radio_index);
     }
     ret = RETURN_OK;
 done:
