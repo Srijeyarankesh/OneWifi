@@ -563,7 +563,7 @@ static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_
         }
         if(amenities_blob != NULL) {
             wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d amenities_blob is not NULL \n", __func__,__LINE__);
-            cJSON *amenities = cJSON_GetObjectItem(root, "AmenitiesNetworkConfig");
+            cJSON *amenities = cJSON_GetObjectItem(amenities_blob, "AmenitiesNetworkConfig");
             if (amenities == NULL) {
                 wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d amenities is NULL \n", __func__,__LINE__);
                 return RETURN_ERR;
@@ -595,6 +595,8 @@ static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_
         wifi_hal_get_default_keypassphrase(password, vap_info->vap_index);
         snprintf(vap_info->u.bss_info.ssid, sizeof(vap_info->u.bss_info.ssid), "%s", ssid);
         snprintf(vap_info->u.bss_info.security.u.key.key, sizeof(vap_info->u.bss_info.security.u.key.key), "%s", password);
+        memset(vap_info->u.bss_info.security.repurposed_radius,0,sizeof(vap_info->u.bss_info.security.repurposed_radius));
+        wifi_util_info_print(WIFI_CTRL, "%s:%d SREESH have reverted the configurations to default value \n", __func__,__LINE__);
         strncpy(vap_info->repurposed_vap_name,"",(strlen(repurposed_vap_name) + 1));
     }
 done:
