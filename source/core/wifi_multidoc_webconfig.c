@@ -240,7 +240,6 @@ static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid, char *bridge
         return -1;
     }
     if (managed_wifi) {
-        int band = 0;
         char last_two[3]; 
         strncpy(last_two, vap_info->u.bss_info.ssid + strlen(vap_info->u.bss_info.ssid) - 2, 2);
         last_two[2] = '\0';
@@ -547,9 +546,9 @@ static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_
                     wifi_vap_info_map_t* vap_info_map = get_wifidb_vap_map(radio_index);
                     for (uint8_t itrj = 0; itrj < getMaxNumberVAPsPerRadio(radio_index); itrj++) {
                         if (isVapHotspotSecure(vap_info_map->vap_array[itrj].vap_index) && vap_info_map->vap_array[itrj].u.bss_info.enabled) {
-                            wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH vap_name is %s\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name);
-                            vap_info->u.bss_info.security.repurposed_radius = wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius;
-                            wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual hotspot is vap_name = %s primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name,wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius.ip,wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius.port,wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius.s_ip,wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius.s_port);
+                            wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH vap_name is %s\n",__func__,__LINE__,vap_info_map->vap_array[itrj].vap_name);
+                            vap_info->u.bss_info.security.repurposed_radius = vap_info_map->vap_array[itrj].u.bss_info.security.u.radius;
+                            wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual hotspot is vap_name = %s primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,vap_info_map->vap_array[itrj].vap_name,vap_info_map->vap_array[itrj].u.bss_info.security.u.radius.ip,vap_info_map->vap_array[itrj].u.bss_info.security.u.radius.port,vap_info_map->vap_array[itrj].u.bss_info.security.u.radius.s_ip,vap_info_map->vap_array[itrj].u.bss_info.security.u.radius.s_port);
                             wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual LnF vap Index = %d primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,vap_info->vap_index,vap_info->u.bss_info.security.repurposed_radius.ip,vap_info->u.bss_info.security.repurposed_radius.port,vap_info->u.bss_info.security.repurposed_radius.s_ip,vap_info->u.bss_info.security.repurposed_radius.s_port);
                             break;
                         }
@@ -678,7 +677,12 @@ static int update_vap_info_with_blob_info(void *blob, void* amenities_blob, webc
                 wifi_util_dbg_print(WIFI_CTRL,"SREESH Managed wifi bridge not found\n");
                 char radio_name[32];
                 int k = convert_radio_index_to_name(radio_index, radio_name);
-                if(strcmp(radio_name,"radio1") == 0) {
+                if(k == -1)
+                {
+                    wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d radio name is not found\n", __func__,__LINE__);
+                    status = RETURN_ERR;
+                }
+                if(strcmp(radio_name,"radio1") == 0 ) {
                     snprintf(brval, sizeof(brval), "brlan16");
                 } else if (strcmp(radio_name,"radio2") == 0) {
                     snprintf(brval, sizeof(brval), "brlan17");
