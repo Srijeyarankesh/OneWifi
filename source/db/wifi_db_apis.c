@@ -672,7 +672,7 @@ void callback_Wifi_Security_Config(ovsdb_update_monitor_t *mon,
                 l_security_cfg->repurposed_radius.port,(char *)l_security_cfg->repurposed_radius.s_ip,l_security_cfg->repurposed_radius.s_port,
                 new_rec->vap_name,l_security_cfg->rekey_interval,l_security_cfg->strict_rekey,l_security_cfg->eapol_key_timeout,
                 l_security_cfg->eapol_key_retries,l_security_cfg->eap_identity_req_timeout,l_security_cfg->eap_identity_req_retries,l_security_cfg->eap_req_timeout,
-                l_security_cfg->eap_req_retries,l_security_cfg->disable_pmksa_caching,l_security_cfg->repurposed_radius.identity_req_retry_interval,l_security_cfg->repurposed_radius.server_retries,l_security_cfg->repurposed_radius.das_ip);
+                l_security_cfg->eap_req_retries,l_security_cfg->disable_pmksa_caching,l_security_cfg->repurposed_radius.identity_req_retry_interval,l_security_cfg->repurposed_radius.server_retries,l_security_cfg->repurposed_radius.dasip);
             }
         }
         else
@@ -1045,8 +1045,8 @@ void callback_Wifi_VAP_Config(ovsdb_update_monitor_t *mon,
             l_bss_param_cfg->hostap_mgt_frame_ctrl = new_rec->hostap_mgt_frame_ctrl;
             l_bss_param_cfg->mbo_enabled = new_rec->mbo_enabled;
             l_bss_param_cfg->managed_wifi_2 = new_rec->managed_wifi_2;
-            l_bss_param_cfg->speed_tier = new_rec->speed_tier;
-            wifi_util_info_print(WIFI_DB,"%s:%d:SREESH Value of l_bss_param_cfg->vap_name=%s l_bss_param_cfg->managed_wifi_2=%d  l_bss_param_cfg->speed_tier=%s\n",__func__, __LINE__, l_bss_param_cfg->vap_name, l_bss_param_cfg->managed_wifi_2 ,l_bss_param_cfg->speed_tier);
+            strncpy(l_bss_param_cfg->speed_tier, new_rec->speed_tier, sizeof(l_bss_param_cfg->speed_tier)-1);
+            wifi_util_info_print(WIFI_DB,"%s:%d:SREESH Value of vap_index=%d l_bss_param_cfg->managed_wifi_2=%d  l_bss_param_cfg->speed_tier=%s\n",__func__, __LINE__, vap_index, l_bss_param_cfg->managed_wifi_2 ,l_bss_param_cfg->speed_tier);
             wifi_util_dbg_print(WIFI_DB,
                 "%s:%d:VAP Config radio_name=%s vap_name=%s ssid=%s enabled=%d "
                 "ssid_advertisement_enable=%d isolation_enabled=%d mgmt_power_control=%d "
@@ -2662,7 +2662,7 @@ int wifidb_update_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
         cfg.mbo_enabled = config->u.bss_info.mbo_enabled;
         cfg.managed_wifi_2 = config->u.bss_info.managed_wifi_2;
         cfg.speed_tier = config->u.bss_info.speed_tier;
-        wifi_util_info_print(WIFI_DB,"%s:%d SREESH Value of vap_name = %s managed_wifi_2 = %d and value of speed_tier = %s\n",__func__,__LINE__,cfg.vap_namecfg.managed_wifi_2,cfg.speed_tier);
+        wifi_util_info_print(WIFI_DB,"%s:%d SREESH Value of vap_name = %s managed_wifi_2 = %d and value of speed_tier = %s\n",__func__,__LINE__,cfg.vap_name,cfg.managed_wifi_2,cfg.speed_tier);
         wifi_util_dbg_print(WIFI_DB,
             "%s:%d: VAP Config update data cfg.radio_name=%s cfg.vap_name=%s cfg.ssid=%s "
             "cfg.enabled=%d cfg.advertisement=%d cfg.isolation_enabled=%d "
@@ -5843,7 +5843,7 @@ int wifidb_get_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
             config->u.bss_info.hostap_mgt_frame_ctrl = pcfg->hostap_mgt_frame_ctrl;
             config->u.bss_info.mbo_enabled = pcfg->mbo_enabled;
             config->u.bss_info.managed_wifi_2 = pcfg->managed_wifi_2;
-            config->u.bss_info.speed_tier = pcfg->speed_tier;
+            strncpy(config->u.bss_info.speed_tier, pcfg->speed_tier, sizeof(config->u.bss_info.speed_tier)-1);
             wifi_util_info_print(WIFI_DB,"%s:%d SREESH Value of vap_name=%s and managed_wifi_2=%d and speed_tier=%s\n",__func__,__LINE__, pcfg->vap_name, pcfg->managed_wifi_2, pcfg->speed_tier);
         }
     }
@@ -6741,7 +6741,7 @@ int wifidb_init_vap_config_default(int vap_index, wifi_vap_info_t *config,
         cfg.u.bss_info.connected_building_enabled = false;
         cfg.u.bss_info.managed_wifi_2 = false;
         strncpy(cfg.u.bss_info.speed_tier, "0", sizeof(cfg.u.bss_info.speed_tier)-1);
-        wifi_util_info_print(WIFI_DB,"%s:%dSREESH vap_name %s speed_tier %s and managed_wifi_2=%d\n", __func__, __LINE__, cfg.u.bss_info.vap_name, cfg.u.bss_info.speed_tier, cfg.u.bss_info.managed_wifi_2);
+        wifi_util_info_print(WIFI_DB,"%s:%dSREESH vap_index %d speed_tier %s and managed_wifi_2=%d\n", __func__, __LINE__, vap_index, cfg.u.bss_info.speed_tier, cfg.u.bss_info.managed_wifi_2);
         if (isVapPrivate(vap_index)) {
             cfg.u.bss_info.vapStatsEnable = true;
             cfg.u.bss_info.wpsPushButton = 0;

@@ -245,14 +245,14 @@ static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid, char *bridge
         wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of vap Index = %d and radio_index = %d\n",__func__,__LINE__,index,radio_index);
         if (convert_radio_index_to_freq_band(&(get_wifimgr_obj())->hal_cap.wifi_prop, (UINT)radio_index, &band) == RETURN_ERR) {
             wifi_util_error_print(WIFI_APPS,"%s:%d SREESH failed to convert radio_index=%d to freq_band\n", __func__, __LINE__, radio_index);
-            continue;
+            return -1;
         }
         if (strlen(bridge_name) == 0) {
             wifi_util_dbg_print(WIFI_CTRL,"BridgeName is empty\n");
             if(band == WIFI_FREQUENCY_2_4_BAND) {
                 snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan16");
             }
-            else if(band == WIFI_FREQUENCY_5_BAND || band == WIFI_FREQUENCY_5_L_BAND) {
+            else if(band == WIFI_FREQUENCY_5_BAND || band == WIFI_FREQUENCY_5L_BAND) {
                 snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan17");
             }
             else {
@@ -546,15 +546,16 @@ static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_
 
                 if (strlen(repurposed_vap_name) != 0) {
                     strncpy(vap_info->repurposed_vap_name, repurposed_vap_name, (strlen(repurposed_vap_name) + 1));
-                    for (itrj = 0; itrj < getMaxNumberVAPsPerRadio(radio_index); itrj++) {
-                        vap_index = wifi_vap_map->vap_array[itrj].vap_index;
-                        if (isVapHotspotSecure(vap_index)) {
-                        wifi_radius_settings_t* radius = &wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius;
-                        wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH vap_name is %s\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name);
-                        vap_info->u.bss_info.security.repurposed_radius = radius;
-                        wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual hotspot is vap_name = %s primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name,radius->ip,radius->port,radius->s_ip,radius->s_port);
-                        wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual LnF vap Index = %d primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,vap_info->vap_index,vap_info->u.bss_info.security.repurposed_radius.ip,vap_info->u.bss_info.security.repurposed_radius.port,vap_info->u.bss_info.security.repurposed_radius.s_ip,vap_info->u.bss_info.security.repurposed_radius.s_port);
-                        break;
+                    unsigned int radio_index;
+                    radio_index = get_radio_index_for_vap_index(&(get_wifimgr_obj())->hal_cap.wifi_prop, vap_info->vap_index);
+                    wifi_vap_info_t* vap_info_map = get_wifidb_vap_map(itr);
+                    for (uint8_t itrj = 0; itrj < getMaxNumberVAPsPerRadio(radio_index); itrj++) {
+                        if (isVapHotspotSecure(vap_info_map->vap_array[itrj].vap_index) && vap_info_map->vap_array[itrj].u.bss_info.enabled) {
+                            wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH vap_name is %s\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name);
+                            vap_info->u.bss_info.security.repurposed_radius = wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius;
+                            wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual hotspot is vap_name = %s primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,wifi_vap_map->vap_array[itrj].vap_name,wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius.ip,wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius.port,wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius.s_ip,wifi_vap_map->vap_array[itrj].u.bss_info.security.u.radius.s_port);
+                            wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of actual LnF vap Index = %d primary ip = %s primary port = %d secondary ip = %s secondary port = %d\n",__func__,__LINE__,vap_info->vap_index,vap_info->u.bss_info.security.repurposed_radius.ip,vap_info->u.bss_info.security.repurposed_radius.port,vap_info->u.bss_info.security.repurposed_radius.s_ip,vap_info->u.bss_info.security.repurposed_radius.s_port);
+                            break;
                         }
                     }
                     wifi_util_info_print(WIFI_CTRL, "%s: SREESH Have successfully applied the configs \n", __func__);
@@ -573,9 +574,9 @@ static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_
                 wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d networkparams is NULL \n", __func__,__LINE__);
                 return RETURN_ERR;
             }
-            cJSON *speedtier = cJSON_GetObjectItem(network_params, "speed_tier");
+            cJSON *speedtier = cJSON_GetObjectItem(networkparams, "speed_tier");
             if (speedtier && cJSON_IsNumber(speedtier)) {
-                sprintf(vap_info->u.bss_info.speed_tier,"%s", speedtier->valueint);
+                snprintf(vap_info->u.bss_info.speed_tier, sizeof(vap_info->u.bss_info.speed_tier), "%d", speedtier->valueint);
                 wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH speed_tier: %d and vap name is vap_info->vap_name = %s and vap_info->u.bss_info.speed_tier = %s\n",__func__,__LINE__,speedtier->valueint,vap_info->vap_name,vap_info->u.bss_info.speed_tier);
             } else {
             wifi_util_info_print(WIFI_CTRL,"SREESH %s: %d speed_tier not found or not a number\n", __func__,__LINE__);
@@ -595,7 +596,7 @@ static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_
         wifi_hal_get_default_keypassphrase(password, vap_info->vap_index);
         snprintf(vap_info->u.bss_info.ssid, sizeof(vap_info->u.bss_info.ssid), "%s", ssid);
         snprintf(vap_info->u.bss_info.security.u.key.key, sizeof(vap_info->u.bss_info.security.u.key.key), "%s", password);
-        memset(vap_info->u.bss_info.security.repurposed_radius,0,sizeof(vap_info->u.bss_info.security.repurposed_radius));
+        memset(&vap_info->u.bss_info.security.repurposed_radius, 0, sizeof(vap_info->u.bss_info.security.repurposed_radius));
         wifi_util_info_print(WIFI_CTRL, "%s:%d SREESH have reverted the configurations to default value \n", __func__,__LINE__);
         strncpy(vap_info->repurposed_vap_name,"",(strlen(repurposed_vap_name) + 1));
     }
