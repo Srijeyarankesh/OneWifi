@@ -539,7 +539,7 @@ static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_
                         {
                             snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan16");
                         }
-                        else if (strcmp(saveptr + 1, NAME_FREQUENCY_5_G) == 0) || (strcmp(saveptr + 1, NAME_FREQUENCY_5L_G) == 0)
+                        else if ((strcmp(saveptr + 1, NAME_FREQUENCY_5_G) == 0) || (strcmp(saveptr + 1, NAME_FREQUENCY_5L_G) == 0))
                         {
                             snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan17");
                         }
