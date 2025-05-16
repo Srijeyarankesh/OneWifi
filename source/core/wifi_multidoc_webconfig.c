@@ -248,6 +248,7 @@ static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid, char *bridge
             wifi_util_error_print(WIFI_CTRL, "%s: missing \"BssMax\"\n", __func__);
             return -1;
         }
+        wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Valuye of bridge name = %s and vap_name = %s\n",__func__,__LINE__,bridge_name,vap_info->vap_name);
     }
     return 0;
 }
@@ -591,7 +592,8 @@ static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_
         snprintf(vap_info->u.bss_info.ssid, sizeof(vap_info->u.bss_info.ssid), "%s", ssid);
         snprintf(vap_info->u.bss_info.security.u.key.key, sizeof(vap_info->u.bss_info.security.u.key.key), "%s", password);
         memset(&vap_info->u.bss_info.security.repurposed_radius, 0, sizeof(vap_info->u.bss_info.security.repurposed_radius));
-        wifi_util_info_print(WIFI_CTRL, "%s:%d SREESH have reverted the configurations to default value \n", __func__,__LINE__);
+        strncpy(vap_info->u.bss_info.speed_tier,"0",sizeof(vap_info->u.bss_info.speed_tier));
+        wifi_util_info_print(WIFI_CTRL, "%s:%d SREESH have reverted the configurations to default value\n", __func__,__LINE__);
         strncpy(vap_info->repurposed_vap_name,"",(strlen(repurposed_vap_name) + 1));
     }
 done:
@@ -675,7 +677,7 @@ static int update_vap_info_with_blob_info(void *blob, void* amenities_blob, webc
             if ( rc != 0) {
                 wifi_util_dbg_print(WIFI_CTRL,"SREESH Managed wifi bridge not found\n");
                 char radio_name[32];
-                int k = convert_radio_index_to_name(radio_index, radio_name);
+                int k = convert_radio_index_to_radio_name(radio_index, radio_name);
                 if(k == -1)
                 {
                     wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d radio name is not found\n", __func__,__LINE__);
