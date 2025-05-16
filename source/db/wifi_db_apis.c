@@ -2661,7 +2661,7 @@ int wifidb_update_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
         cfg.hostap_mgt_frame_ctrl = config->u.bss_info.hostap_mgt_frame_ctrl;
         cfg.mbo_enabled = config->u.bss_info.mbo_enabled;
         cfg.managed_wifi_2 = config->u.bss_info.managed_wifi_2;
-        cfg.speed_tier = config->u.bss_info.speed_tier;
+        strncpy(cfg.speed_tier, config->u.bss_info.speed_tier, sizeof(cfg.speed_tier)-1);
         wifi_util_info_print(WIFI_DB,"%s:%d SREESH Value of vap_name = %s managed_wifi_2 = %d and value of speed_tier = %s\n",__func__,__LINE__,cfg.vap_name,cfg.managed_wifi_2,cfg.speed_tier);
         wifi_util_dbg_print(WIFI_DB,
             "%s:%d: VAP Config update data cfg.radio_name=%s cfg.vap_name=%s cfg.ssid=%s "

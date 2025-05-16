@@ -462,6 +462,8 @@ webconfig_error_t encode_vap_common_object(const wifi_vap_info_t *vap_info,
     }
     cJSON_AddStringToObject(vap_object, "ExtraVendorIEs", extra_vendor_ies_hex_str);
 
+    cJSON_AddStringToObject(vap_object, "speed_tier", vap_info->u.bss_info.speed_tier); // Move this later to Amenities blob
+    wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH speed_tier %s\n", __func__, __LINE__, vap_info->u.bss_info.speed_tier);
     return webconfig_error_none;
 }
 
@@ -1338,7 +1340,6 @@ webconfig_error_t encode_lnf_psk_vap_object(const wifi_vap_info_t *vap_info,
     if (encode_interworking_common_object(&vap_info->u.bss_info.interworking, obj) != webconfig_error_none) {
         wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d Interworking object encode failed for %s\n",__FUNCTION__, __LINE__, vap_info->vap_name);
         return webconfig_error_encode;
-
     }
 
     return webconfig_error_none;

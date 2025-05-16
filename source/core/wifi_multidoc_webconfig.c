@@ -240,25 +240,6 @@ static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid, char *bridge
         return -1;
     }
     if (managed_wifi) {
-        char last_two[3]; 
-        strncpy(last_two, vap_info->u.bss_info.ssid + strlen(vap_info->u.bss_info.ssid) - 2, 2);
-        last_two[2] = '\0';
-        if (strlen(bridge_name) == 0) {
-            wifi_util_dbg_print(WIFI_CTRL,"BridgeName is empty\n");
-            if(!strcmp(last_two, NAME_FREQUENCY_2_4_G)) {
-                snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan16");
-            }
-            else if(!strcmp(last_two, NAME_FREQUENCY_5) || !strcmp(last_two, NAME_FREQUENCY_5L_G)) {
-                snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan17");
-            }
-            else {
-                snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan18");
-            }
-            wifi_util_info_print(WIFI_CTRL, "SREESH %s: %d bridge_name is empty and bridge name is %s\n", __func__,__LINE__,vap_info->bridge_name);
-        } else {
-            wifi_util_dbg_print(WIFI_CTRL,"BridgeName is %s\n",bridge_name);
-            snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "%s", bridge_name);
-        }
         param = cJSON_GetObjectItem(ssid, "BssMaxNumSta");
         if (param) {
             vap_info->u.bss_info.bssMaxSta = param->valuedouble;
@@ -553,6 +534,24 @@ static int update_vap_info_managed_guest(void *data, void* amenities_blob, wifi_
                             break;
                         }
                     }
+                    if (strlen(bridge_name) == 0) {
+                        if (strcmp(saveptr + 1, NAME_FREQUENCY_2_4_G) == 0)
+                        {
+                            snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan16");
+                        }
+                        else if (strcmp(saveptr + 1, NAME_FREQUENCY_5_G) == 0) || (strcmp(saveptr + 1, NAME_FREQUENCY_5L_G) == 0)
+                        {
+                            snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan17");
+                        }
+                        else
+                        {
+                            snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "brlan18");
+                        }
+                        wifi_util_info_print(WIFI_CTRL,"SREESH BridgeName is %s and vap_name = %s = \n",vap_info->bridge_name,vap_info->vap_name);
+                    } else {
+                        wifi_util_dbg_print(WIFI_CTRL,"BridgeName is %s\n",bridge_name);
+                        snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "%s", bridge_name);
+                    }
                     wifi_util_info_print(WIFI_CTRL, "%s: SREESH Have successfully applied the configs \n", __func__);
                 }
             }
@@ -832,11 +831,11 @@ static int connected_subdoc_handler(void *blob, void *amenities_blob, const char
                 wifi_util_error_print(WIFI_CTRL, "%s: managed_wifi_enabled is false \n", __func__);
                 strncpy(managed_interfaces,"ManagedWifi:",sizeof(managed_interfaces)-1);
             }
+            wifi_util_info_print(WIFI_CTRL, "SREESH managed_interfaces = %s and lnf_psk_ifname=%s\n",managed_interfaces,(char *)lnf_psk_ifname);
+            unsigned int radio_index = get_radio_index_for_vap_index(&data->u.decoded.hal_cap.wifi_prop, vap_index);
+            wifi_util_info_print(WIFI_CTRL, "SREESH %s: radio_index = %d vap_index = %d\n", __func__,radio_index,vap_index);
+            set_managed_guest_interfaces(managed_interfaces,radio_index);
         }
-        wifi_util_info_print(WIFI_CTRL, "managed_interfaces = %s and lnf_psk_ifname=%s\n",managed_interfaces,(char *)lnf_psk_ifname);
-        unsigned int radio_index = get_radio_index_for_vap_index(&data->u.decoded.hal_cap.wifi_prop, vap_index);
-        wifi_util_info_print(WIFI_CTRL, "SREESH %s: radio_index = %d vap_index = %d\n", __func__,radio_index,vap_index);
-        set_managed_guest_interfaces(managed_interfaces,radio_index);
     }
     ret = RETURN_OK;
 done:

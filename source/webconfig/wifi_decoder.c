@@ -1671,6 +1671,8 @@ webconfig_error_t decode_vap_common_object(const cJSON *vap, wifi_vap_info_t *va
         vap_info->u.bss_info.vendor_elements_len = i;
     }
 
+    decode_param_allow_empty_string(vap, "speed_tier" , param);
+    strcpy(vap_info->u.bss_info.speed_tier, param->valuestring);
     return webconfig_error_none;
 }
 
