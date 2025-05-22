@@ -22,6 +22,7 @@
 #include <string.h> /* strdup() */
 #include <stdlib.h>
 #include "const.h"
+#include "services/vap_svc.h"
 #include "wifi_hal.h"
 #include "wifi_ctrl.h"
 #include "wifi_mgr.h"
@@ -93,6 +94,90 @@ void print_wifi_hal_bss_vap_data(wifi_dbg_type_t log_file_type, char *prefix,
             l_bss_info->hostap_mgt_frame_ctrl, l_bss_info->mbo_enabled);
     }
 }
+
+void process_managed_wifi_enable()
+{
+    wifi_util_info_print(WIFI_SRI, "%s:%d: Inside function\n", __func__, __LINE__);
+    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+    wifi_vap_info_t *lnf_vap_2g_cfg = NULL;
+    wifi_vap_info_t *hotspot_vap_5g_cfg = NULL;
+    wifi_vap_info_t *lnf_vap_cfg = NULL;
+    wifi_vap_info_t *hotspot_vap_cfg = NULL;
+    wifi_vap_info_map_t *wifi_vap_map = NULL;
+    wifi_vap_info_map_t tgt_vap_map;
+    rdk_wifi_vap_info_t *rdk_vap_info = NULL;
+    vap_svc_t *svc = NULL;
+    UINT vap_array_index_lnf_2g = 0;
+
+    // Traverse radios starting from index 1 (defer radio 0)
+    for (UINT rIdx = 1; rIdx < getNumberRadios(); rIdx++) {
+        wifi_vap_map = get_wifidb_vap_map(rIdx);
+        if (!wifi_vap_map) continue;
+
+        for (UINT itrj = 0; itrj < getMaxNumberVAPsPerRadio(rIdx); itrj++) {
+            int vap_index = wifi_vap_map->vap_array[itrj].vap_index;
+            char *vap_name = wifi_vap_map->vap_array[itrj].vap_name;
+            if (isVapLnfPsk(vap_index)) {
+                lnf_vap_cfg = get_wifidb_vap_parameters(vap_index);
+                if (!lnf_vap_cfg) continue;
+                svc = get_svc_by_name(ctrl, vap_name);
+                if (!svc) break;
+                if (strstr(lnf_vap_cfg->vap_name, NAME_FREQUENCY_2_4_G)) {
+                    vap_array_index_lnf_2g = itrj;
+                    lnf_vap_2g_cfg = lnf_vap_cfg;
+                    wifi_util_info_print(WIFI_SRI, "%s:%d: Found 2.4GHz LnF vap %s\n", __func__, __LINE__, lnf_vap_cfg->vap_name);
+                }
+                memset(&tgt_vap_map, 0, sizeof(tgt_vap_map));
+                tgt_vap_map.num_vaps = 1;
+                memcpy(&tgt_vap_map.vap_array[itrj], lnf_vap_cfg, sizeof(wifi_vap_info_t));
+                rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
+                if (!rdk_vap_info) {
+                    wifi_util_error_print(WIFI_SRI, "%s:%d Failed to get rdk vap info for index %d\n", __func__, __LINE__, vap_index);
+                    break;
+                }
+            }
+
+            if (isVapHotspotSecure(vap_index)) {
+                hotspot_vap_cfg = get_wifidb_vap_parameters(vap_index);
+                if (!hotspot_vap_cfg || !lnf_vap_cfg) continue;
+                if (isVapHotspotSecure5g(vap_index)) {
+                    hotspot_vap_5g_cfg = hotspot_vap_cfg;
+                }
+                lnf_vap_cfg->u.bss_info.security.repurposed_radius = hotspot_vap_cfg->u.bss_info.security.u.radius;
+                if (strstr(lnf_vap_cfg->repurposed_vap_name, "managed_guest") &&
+                    hotspot_vap_cfg->u.bss_info.enabled != lnf_vap_cfg->u.bss_info.enabled) {
+                    if (svc->update_fn(svc, rIdx, &tgt_vap_map, rdk_vap_info) != 0) {
+                        wifi_util_info_print(WIFI_SRI, "%s:%d Failed to update vap info for LnF Vap %s\n", __func__, __LINE__, lnf_vap_cfg->vap_name);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    // Final 2.4GHz sync with 5GHz
+    if (lnf_vap_2g_cfg && hotspot_vap_5g_cfg) {
+        wifi_vap_map = get_wifidb_vap_map(0);
+        svc = get_svc_by_name(ctrl, lnf_vap_2g_cfg->vap_name);
+        if (!svc) return;
+        lnf_vap_2g_cfg->u.bss_info.security.repurposed_radius = hotspot_vap_5g_cfg->u.bss_info.security.u.radius;
+        memset(&tgt_vap_map, 0, sizeof(tgt_vap_map));
+        tgt_vap_map.num_vaps = 1;
+        memcpy(&tgt_vap_map.vap_array[vap_array_index_lnf_2g], lnf_vap_2g_cfg, sizeof(wifi_vap_info_t));
+        rdk_vap_info = get_wifidb_rdk_vap_info(lnf_vap_2g_cfg->vap_index);
+        if (!rdk_vap_info) {
+            wifi_util_error_print(WIFI_SRI, "%s:%d Failed to get rdk vap info for index %d\n", __func__, __LINE__, lnf_vap_2g_cfg->vap_index);
+            return;
+        }
+        if (!strcmp(lnf_vap_2g_cfg->repurposed_vap_name, "managed_guest") &&
+            hotspot_vap_5g_cfg->u.bss_info.enabled != lnf_vap_2g_cfg->u.bss_info.enabled) {
+            if (svc->update_fn(svc, 0, &tgt_vap_map, rdk_vap_info) != 0) {
+                wifi_util_info_print(WIFI_SRI, "%s:%d Failed to update vap info for LnF Vap %s\n", __func__, __LINE__, lnf_vap_2g_cfg->vap_name);
+            }
+        }
+    }
+}
+
 
 void print_wifi_hal_vap_security_param(wifi_dbg_type_t log_file_type, char *prefix, unsigned int vap_index, wifi_vap_security_t *l_security)
 {
@@ -2178,6 +2263,7 @@ webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc
                     ctrl->webconfig_state |= ctrl_webconfig_state_vap_xfinity_cfg_rsp_pending;
                     webconfig_analytic_event_data_to_hal_apply(data);
                     ret = webconfig_hal_xfinity_vap_apply(ctrl, &data->u.decoded);
+                    process_managed_wifi_enable(); //Move this somewhere else
                     webconfig_cac_apply(ctrl, &data->u.decoded);
                     if (is_6g_supported_device((&(get_wifimgr_obj())->hal_cap.wifi_prop))) {
                         wifi_util_info_print(WIFI_CTRL,"6g supported device add rnr of 6g\n");

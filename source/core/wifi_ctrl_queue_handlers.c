@@ -17,6 +17,7 @@
   limitations under the License.
  **************************************************************************/
 
+#include <setjmp.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <sys/stat.h>

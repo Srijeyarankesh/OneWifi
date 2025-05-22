@@ -409,6 +409,8 @@ webconfig_error_t encode_vap_common_object(const wifi_vap_info_t *vap_info,
     // NeighborReportActivated
     cJSON_AddBoolToObject(vap_object, "NeighborReportActivated", vap_info->u.bss_info.nbrReportActivated);
 
+    cJSON_AddNumberToObject(vap_object, "SpeedTier", vap_info->u.bss_info.am_config.npc.speed_tier);
+
     // ForceApply
     if (rdk_vap_info->force_apply == true) {
         //Add only if ForceApply is true

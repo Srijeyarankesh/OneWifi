@@ -1174,6 +1174,15 @@
             "min": 0,
             "max": 1
           }
+        },
+        "speed_tier": {
+          "type": {
+            "key": {
+              "type": "int"
+            },
+            "min": 0,
+            "max": 1
+          }
         }
       },
     "isRoot": true
