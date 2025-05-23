@@ -107,7 +107,6 @@ void process_managed_wifi_enable()
     wifi_vap_info_map_t tgt_vap_map;
     rdk_wifi_vap_info_t *rdk_vap_info = NULL;
     vap_svc_t *svc = NULL;
-    UINT vap_array_index_lnf_2g = 0;
 
     // Traverse radios starting from index 1 (defer radio 0)
     for (UINT rIdx = 1; rIdx < getNumberRadios(); rIdx++) {
@@ -123,13 +122,12 @@ void process_managed_wifi_enable()
                 svc = get_svc_by_name(ctrl, vap_name);
                 if (!svc) break;
                 if (strstr(lnf_vap_cfg->vap_name, NAME_FREQUENCY_2_4_G)) {
-                    vap_array_index_lnf_2g = itrj;
                     lnf_vap_2g_cfg = lnf_vap_cfg;
                     wifi_util_info_print(WIFI_SRI, "%s:%d: Found 2.4GHz LnF vap %s\n", __func__, __LINE__, lnf_vap_cfg->vap_name);
                 }
                 memset(&tgt_vap_map, 0, sizeof(tgt_vap_map));
                 tgt_vap_map.num_vaps = 1;
-                memcpy(&tgt_vap_map.vap_array[itrj], lnf_vap_cfg, sizeof(wifi_vap_info_t));
+                memcpy(&tgt_vap_map.vap_array[0], lnf_vap_cfg, sizeof(wifi_vap_info_t));
                 rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
                 if (!rdk_vap_info) {
                     wifi_util_error_print(WIFI_SRI, "%s:%d Failed to get rdk vap info for index %d\n", __func__, __LINE__, vap_index);
@@ -163,7 +161,7 @@ void process_managed_wifi_enable()
         lnf_vap_2g_cfg->u.bss_info.security.repurposed_radius = hotspot_vap_5g_cfg->u.bss_info.security.u.radius;
         memset(&tgt_vap_map, 0, sizeof(tgt_vap_map));
         tgt_vap_map.num_vaps = 1;
-        memcpy(&tgt_vap_map.vap_array[vap_array_index_lnf_2g], lnf_vap_2g_cfg, sizeof(wifi_vap_info_t));
+        memcpy(&tgt_vap_map.vap_array[0], lnf_vap_2g_cfg, sizeof(wifi_vap_info_t));
         rdk_vap_info = get_wifidb_rdk_vap_info(lnf_vap_2g_cfg->vap_index);
         if (!rdk_vap_info) {
             wifi_util_error_print(WIFI_SRI, "%s:%d Failed to get rdk vap info for index %d\n", __func__, __LINE__, lnf_vap_2g_cfg->vap_index);

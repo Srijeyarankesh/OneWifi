@@ -184,11 +184,11 @@ int update_lnf_psk_vap_hal_prop_bridge_name(vap_svc_t *svc, wifi_vap_info_map_t 
         if (isVapLnfPsk(vap_map->vap_array[j].vap_index)) {
             if_prop = get_wifi_hal_capability_info(svc->prop, &vap_map->vap_array[j]);
             if (if_prop == NULL) {
-                wifi_util_error_print(WIFI_CTRL,"%s:%d: Could not find wifi hal capability info for vap_name: %s\n", __func__, __LINE__, vap_map->vap_array[j].vap_name);
+                wifi_util_error_print(WIFI_SRI,"%s:%d: Could not find wifi hal capability info for vap_name: %s\n", __func__, __LINE__, vap_map->vap_array[j].vap_name);
                 return RETURN_ERR;
             } else {
                 if (strncmp(if_prop->bridge_name, vap_map->vap_array[j].bridge_name, strlen(vap_map->vap_array[j].bridge_name)) != 0) {
-                    wifi_util_info_print(WIFI_CTRL,"%s:%d: changed bridge name from :%s to %s\n", __func__, __LINE__, if_prop->bridge_name, vap_map->vap_array[j].bridge_name);
+                    wifi_util_info_print(WIFI_SRI,"%s:%d: changed bridge name from :%s to %s\n", __func__, __LINE__, if_prop->bridge_name, vap_map->vap_array[j].bridge_name);
                     strncpy(if_prop->bridge_name, vap_map->vap_array[j].bridge_name, sizeof(vap_map->vap_array[j].bridge_name));
                 }
             }

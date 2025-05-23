@@ -71,7 +71,7 @@ int vap_svc_private_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_in
         memcpy((unsigned char *)&p_tgt_vap_map->vap_array[0], (unsigned char *)&map->vap_array[i],
                     sizeof(wifi_vap_info_t));
         p_tgt_vap_map->num_vaps = 1;
-
+ 
         // VAP is enabled in HAL if it is present in VIF_Config and enabled. Absent VAP entries are
         // saved to VAP_Config with exist flag set to 0 and default values.
         enabled = p_tgt_vap_map->vap_array[0].u.bss_info.enabled;
@@ -83,30 +83,33 @@ int vap_svc_private_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_in
                 rdk_vap_info[i].exists = true;
             }
 #else
-            wifi_util_error_print(WIFI_CTRL,"%s:%d VAP_EXISTS_FALSE for vap_index=%d, setting to TRUE \n",__FUNCTION__,__LINE__,map->vap_array[i].vap_index);
+            wifi_util_error_print(WIFI_SRI,"%s:%d VAP_EXISTS_FALSE for vap_index=%d, setting to TRUE \n",__FUNCTION__,__LINE__,map->vap_array[i].vap_index);
             rdk_vap_info[i].exists = true;
 #endif /* _SR213_PRODUCT_REQ_ */
         }
 #endif /* !defined(_WNXL11BWL_PRODUCT_REQ_) && !defined(_PP203X_PRODUCT_REQ_) && !defined(_GREXT02ACTS_PRODUCT_REQ_) */
         p_tgt_vap_map->vap_array[0].u.bss_info.enabled &= rdk_vap_info[i].exists;
-
+        wifi_hal_info_print(WIFI_SRI,"%s:%d SREESH p_tgt_vap_map->vap_array[0].vap_name = %s and about to call the wifi_hal_createVAP\n",__func__,__LINE__,
+            p_tgt_vap_map->vap_array[0].vap_name);
         ret = wifi_hal_createVAP(radio_index, p_tgt_vap_map);
         if (ret != RETURN_OK) {
-            wifi_util_error_print(WIFI_CTRL,"%s: wifi vap create failure: radio_index:%d vap_index:%d\n",__FUNCTION__,
+            wifi_util_error_print(WIFI_SRI,"%s: wifi vap create failure: radio_index:%d vap_index:%d\n",__FUNCTION__,
                                                 radio_index, map->vap_array[i].vap_index);
             free(p_tgt_vap_map);
             return ret;
         }
-
+        wifi_util_info_print(WIFI_SRI,"%s:%d wifi_hal_createVAP success: radio_index:%d vap_index:%d vap_name:%s\n",__FUNCTION__,
+                                                radio_index, map->vap_array[i].vap_index, map->vap_array[i].vap_name);
         p_tgt_vap_map->vap_array[0].u.bss_info.enabled = enabled;
 
-        wifi_util_info_print(WIFI_CTRL,"%s: wifi vap create success: radio_index:%d vap_index:%d\n",__FUNCTION__,
+        wifi_util_info_print(WIFI_SRI,"%s: wifi vap create success: radio_index:%d vap_index:%d\n",__FUNCTION__,
                                                 radio_index, map->vap_array[i].vap_index);
         get_wifidb_obj()->desc.print_fn("%s: wifi vap create success: radio_index:%d vap_index:%d\n",__FUNCTION__,
                                                 radio_index, map->vap_array[i].vap_index);
         get_wifidb_obj()->desc.print_fn("%s:%d [Stop] Current time:[%llu]\r\n", __func__, __LINE__, get_current_ms_time());
         if (isVapLnfPsk(p_tgt_vap_map->vap_array[0].vap_index)) {
             update_lnf_psk_vap_hal_prop_bridge_name(svc, p_tgt_vap_map);
+            wifi_util_info_print(WIFI_SRI,"%s:%d SREESH update_lnf_psk_vap_hal_prop_bridge_name\n",__func__,__LINE__);
         }
         memcpy((unsigned char *)&map->vap_array[i], (unsigned char *)&p_tgt_vap_map->vap_array[0],
                     sizeof(wifi_vap_info_t));
