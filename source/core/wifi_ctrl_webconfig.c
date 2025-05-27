@@ -95,87 +95,68 @@ void print_wifi_hal_bss_vap_data(wifi_dbg_type_t log_file_type, char *prefix,
     }
 }
 
+static int update_lnf_vap_as_per_hotspot_enabled(wifi_vap_info_t *lnf_vap_info, wifi_vap_info_t *hotspot_vap_info)
+{
+    if (!lnf_vap_info || !hotspot_vap_info) {
+        wifi_util_error_print(WIFI_SRI, "%s:%d Null VAP info pointer(s)\n", __func__, __LINE__);
+        return -1;
+    }
+    lnf_vap_info->u.bss_info.security.repurposed_radius = hotspot_vap_info->u.bss_info.security.u.radius;
+    wifi_util_info_print(WIFI_SRI, "%s:%d Value of lnf vapInfo->vap_name = %s and lnf_vap_info->radio_index = %d\n", __func__, __LINE__, lnf_vap_info->vap_name, lnf_vap_info->radio_index);
+    wifi_util_info_print(WIFI_SRI, "%s:%d Lnf Primary IP = %s Primary Port = %d Secondary Ip = %s Secondary Port = %d\n",
+        __func__, __LINE__, lnf_vap_info->u.bss_info.security.u.radius.ip, lnf_vap_info->u.bss_info.security.u.radius.port,
+        lnf_vap_info->u.bss_info.security.u.radius.s_ip, lnf_vap_info->u.bss_info.security.u.radius.s_port);
+    //Below condition ok for Hotspot VAP enablement as we only take care of actual config change 
+    if (lnf_vap_info->u.bss_info.mdu_enabled && lnf_vap_info->u.bss_info.enabled != hotspot_vap_info->u.bss_info.enabled)
+    {
+        if (update_vap_params_to_hal_and_db(lnf_vap_info, lnf_vap_info->radio_index, hotspot_vap_info->u.bss_info.enabled) != RETURN_OK) {
+            wifi_util_error_print(WIFI_SRI, "%s:%d Failed to update VAP params to DB\n", __func__, __LINE__);
+            return -1;
+        }
+        lnf_vap_info->u.bss_info.enabled = hotspot_vap_info->u.bss_info.enabled;
+        wifi_util_info_print(WIFI_SRI, "%s:%d Value of lnf vapInfo->vap_name = %s and have made LnF Vap's enabled as same as hotspot vap enabled\n", __func__, __LINE__, lnf_vap_info->vap_name);
+    }
+    return 0;
+}
+
 void process_managed_wifi_enable()
 {
     wifi_util_info_print(WIFI_SRI, "%s:%d: Inside function\n", __func__, __LINE__);
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
-    wifi_vap_info_t *lnf_vap_2g_cfg = NULL;
-    wifi_vap_info_t *hotspot_vap_5g_cfg = NULL;
-    wifi_vap_info_t *lnf_vap_cfg = NULL;
-    wifi_vap_info_t *hotspot_vap_cfg = NULL;
-    wifi_vap_info_map_t *wifi_vap_map = NULL;
-    wifi_vap_info_map_t tgt_vap_map;
-    rdk_wifi_vap_info_t *rdk_vap_info = NULL;
-    vap_svc_t *svc = NULL;
+    wifi_vap_info_t *hotspot5g_vap_info = NULL;
 
     // Traverse radios starting from index 1 (defer radio 0)
     for (UINT rIdx = 1; rIdx < getNumberRadios(); rIdx++) {
-        wifi_vap_map = get_wifidb_vap_map(rIdx);
-        if (!wifi_vap_map) continue;
+        UINT lnf_ap_index = getLnfApFromRadioIndex(rIdx, VAP_PREFIX_LNF_PSK);
+        UINT hotspot_ap_index = getHotspotApFromRadioIndex(rIdx, VAP_PREFIX_HOTSPOT_SECURE);
 
-        for (UINT itrj = 0; itrj < getMaxNumberVAPsPerRadio(rIdx); itrj++) {
-            int vap_index = wifi_vap_map->vap_array[itrj].vap_index;
-            char *vap_name = wifi_vap_map->vap_array[itrj].vap_name;
-            if (isVapLnfPsk(vap_index)) {
-                lnf_vap_cfg = get_wifidb_vap_parameters(vap_index);
-                if (!lnf_vap_cfg) continue;
-                svc = get_svc_by_name(ctrl, vap_name);
-                if (!svc) break;
-                if (strstr(lnf_vap_cfg->vap_name, NAME_FREQUENCY_2_4_G)) {
-                    lnf_vap_2g_cfg = lnf_vap_cfg;
-                    wifi_util_info_print(WIFI_SRI, "%s:%d: Found 2.4GHz LnF vap %s\n", __func__, __LINE__, lnf_vap_cfg->vap_name);
-                }
-                memset(&tgt_vap_map, 0, sizeof(tgt_vap_map));
-                tgt_vap_map.num_vaps = 1;
-                memcpy(&tgt_vap_map.vap_array[0], lnf_vap_cfg, sizeof(wifi_vap_info_t));
-                rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
-                if (!rdk_vap_info) {
-                    wifi_util_error_print(WIFI_SRI, "%s:%d Failed to get rdk vap info for index %d\n", __func__, __LINE__, vap_index);
-                    break;
-                }
-            }
+        wifi_vap_info_t *lnf_vap_info = get_wifidb_vap_parameters(lnf_ap_index);
+        wifi_vap_info_t *hotspot_vap_info = get_wifidb_vap_parameters(hotspot_ap_index);
 
-            if (isVapHotspotSecure(vap_index)) {
-                hotspot_vap_cfg = get_wifidb_vap_parameters(vap_index);
-                if (!hotspot_vap_cfg || !lnf_vap_cfg) continue;
-                if (isVapHotspotSecure5g(vap_index)) {
-                    hotspot_vap_5g_cfg = hotspot_vap_cfg;
-                }
-                lnf_vap_cfg->u.bss_info.security.repurposed_radius = hotspot_vap_cfg->u.bss_info.security.u.radius;
-                if (strstr(lnf_vap_cfg->repurposed_vap_name, "managed_guest") &&
-                    hotspot_vap_cfg->u.bss_info.enabled != lnf_vap_cfg->u.bss_info.enabled) {
-                    if (svc->update_fn(svc, rIdx, &tgt_vap_map, rdk_vap_info) != 0) {
-                        wifi_util_info_print(WIFI_SRI, "%s:%d Failed to update vap info for LnF Vap %s\n", __func__, __LINE__, lnf_vap_cfg->vap_name);
-                    }
-                    break;
-                }
-            }
+        if (!lnf_vap_info || !hotspot_vap_info) {
+            wifi_util_error_print(WIFI_SRI, "%s:%d Failed to get LNF or Hotspot VAP info for radio %u\n", __func__, __LINE__, rIdx);
+            continue;
         }
+        if (isVapHotspotSecure5g(hotspot_ap_index)) {
+            hotspot5g_vap_info = hotspot_vap_info;
+            wifi_util_info_print(WIFI_SRI, "%s:%d Hotspot 5G Secure VAP Credentials found for index %u\n", __func__, __LINE__, hotspot_ap_index);
+        }
+        update_lnf_vap_as_per_hotspot_enabled(lnf_vap_info, hotspot_vap_info);
     }
-
-    // Final 2.4GHz sync with 5GHz
-    if (lnf_vap_2g_cfg && hotspot_vap_5g_cfg) {
-        wifi_vap_map = get_wifidb_vap_map(0);
-        svc = get_svc_by_name(ctrl, lnf_vap_2g_cfg->vap_name);
-        if (!svc) return;
-        lnf_vap_2g_cfg->u.bss_info.security.repurposed_radius = hotspot_vap_5g_cfg->u.bss_info.security.u.radius;
-        memset(&tgt_vap_map, 0, sizeof(tgt_vap_map));
-        tgt_vap_map.num_vaps = 1;
-        memcpy(&tgt_vap_map.vap_array[0], lnf_vap_2g_cfg, sizeof(wifi_vap_info_t));
-        rdk_vap_info = get_wifidb_rdk_vap_info(lnf_vap_2g_cfg->vap_index);
-        if (!rdk_vap_info) {
-            wifi_util_error_print(WIFI_SRI, "%s:%d Failed to get rdk vap info for index %d\n", __func__, __LINE__, lnf_vap_2g_cfg->vap_index);
-            return;
-        }
-        if (!strcmp(lnf_vap_2g_cfg->repurposed_vap_name, "managed_guest") &&
-            hotspot_vap_5g_cfg->u.bss_info.enabled != lnf_vap_2g_cfg->u.bss_info.enabled) {
-            if (svc->update_fn(svc, 0, &tgt_vap_map, rdk_vap_info) != 0) {
-                wifi_util_info_print(WIFI_SRI, "%s:%d Failed to update vap info for LnF Vap %s\n", __func__, __LINE__, lnf_vap_2g_cfg->vap_name);
-            }
-        }
+    // Handle radio 0 (deferred)
+    UINT lnf_ap_index_0 = getLnfApFromRadioIndex(0, VAP_PREFIX_LNF_PSK);
+    wifi_vap_info_t *lnf_vap_info_0 = get_wifidb_vap_parameters(lnf_ap_index_0);
+    if (!lnf_vap_info_0) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to get LNF VAP info for index %u\n", __func__, __LINE__, lnf_ap_index_0);
+        return;
     }
+    if (!hotspot5g_vap_info) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d Hotspot 5G Secure VAP info not found, cannot update LNF radio 0\n", __func__, __LINE__);
+        return;
+    }
+    update_lnf_vap_as_per_hotspot_enabled(lnf_vap_info_0, hotspot5g_vap_info);
+    wifi_util_info_print(WIFI_SRI, "%s:%d Exiting function\n", __func__, __LINE__);
 }
-
 
 void print_wifi_hal_vap_security_param(wifi_dbg_type_t log_file_type, char *prefix, unsigned int vap_index, wifi_vap_security_t *l_security)
 {

@@ -411,6 +411,8 @@ webconfig_error_t encode_vap_common_object(const wifi_vap_info_t *vap_info,
 
     cJSON_AddNumberToObject(vap_object, "SpeedTier", vap_info->u.bss_info.am_config.npc.speed_tier);
 
+    cJSON_AddBoolToObject(vap_object, "MDU_Enabled", vap_info->u.bss_info.mdu_enabled);
+
     // ForceApply
     if (rdk_vap_info->force_apply == true) {
         //Add only if ForceApply is true

@@ -218,6 +218,8 @@ static int decode_ssid_blob(wifi_vap_info_t *vap_info, cJSON *ssid, bool managed
         if (cJSON_IsBool(param)) {
             vap_info->u.bss_info.enabled = cJSON_IsTrue(param) ? true : false;
             wifi_util_info_print(WIFI_CTRL, "   \"Enable\": %s\n", (vap_info->u.bss_info.enabled) ? "true" : "false");
+            wifi_util_info_print(WIFI_SRI, " \" MDU Enabled\": %s\n", (vap_info->u.bss_info.mdu_enabled = vap_info->u.bss_info.enabled && managed_wifi));
+            }
         } else {
             wifi_util_error_print(WIFI_CTRL, "%s: \"Enable\" is not boolean\n", __func__);
             return -1;
@@ -372,7 +374,6 @@ static int decode_security_blob(wifi_vap_info_t *vap_info, cJSON *security,pErr 
 static int decode_amenities_blob(wifi_vap_info_t *vap_info, cJSON *amenities_blob, pErr execRetVal)
 {
     cJSON *param;
-
     wifi_util_info_print(WIFI_SRI, "Amenities blob: %s\n", cJSON_Print(amenities_blob));
     param = cJSON_GetObjectItem(amenities_blob, "network_parameters");
     if (param) {
@@ -1116,6 +1117,7 @@ pErr wifi_vap_cfg_subdoc_handler(void *data)
             wifi_util_dbg_print(WIFI_CTRL, "connected_building_enabled param is not present\n");
             cJSON_AddBoolToObject(vb_entry,"Connected_building_enabled",wifi_vap_map->vap_array[vapArrayIndex].u.bss_info.connected_building_enabled);
         }
+        cJSON_AddBoolToObject(vb_entry, "MDU_Enabled", wifi_vap_map->vap_array[vapArrayIndex].u.bss_info.mdu_enabled);
 
         cJSON_AddStringToObject(vb_entry, "RepurposedVapName", wifi_vap_map->vap_array[vapArrayIndex].repurposed_vap_name);
 
