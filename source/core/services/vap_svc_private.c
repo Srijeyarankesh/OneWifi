@@ -89,7 +89,7 @@ int vap_svc_private_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_in
         }
 #endif /* !defined(_WNXL11BWL_PRODUCT_REQ_) && !defined(_PP203X_PRODUCT_REQ_) && !defined(_GREXT02ACTS_PRODUCT_REQ_) */
         p_tgt_vap_map->vap_array[0].u.bss_info.enabled &= rdk_vap_info[i].exists;
-        wifi_hal_info_print(WIFI_SRI,"%s:%d SREESH p_tgt_vap_map->vap_array[0].vap_name = %s and about to call the wifi_hal_createVAP\n",__func__,__LINE__,
+        wifi_util_info_print(WIFI_SRI,"%s:%d SREESH p_tgt_vap_map->vap_array[0].vap_name = %s and about to call the wifi_hal_createVAP\n",__func__,__LINE__,
             p_tgt_vap_map->vap_array[0].vap_name);
         ret = wifi_hal_createVAP(radio_index, p_tgt_vap_map);
         if (ret != RETURN_OK) {
