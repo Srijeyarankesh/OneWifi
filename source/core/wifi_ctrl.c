@@ -2928,6 +2928,7 @@ int update_vap_params_to_hal_and_db(wifi_vap_info_t *vap, int radio_indx, bool e
         wifi_util_error_print(WIFI_SRI, "%s:%d NULL vap object\n", __func__, __LINE__);
         return RETURN_ERR;
     }
+    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     wifi_util_info_print(WIFI_SRI, "%s:%d vap name = %s and radio_indx = %d\n",__func__,__LINE__,vap->vap_name,radio_indx);
     wifi_vap_info_map_t tmp_vap_map;
     memset((unsigned char *)&tmp_vap_map, 0, sizeof(wifi_vap_info_map_t));
@@ -2943,7 +2944,7 @@ int update_vap_params_to_hal_and_db(wifi_vap_info_t *vap, int radio_indx, bool e
     tmp_vap_map.vap_array[0].u.bss_info.enabled = enable_or_disable;
     vap_svc_t *svc = get_svc_by_name(ctrl, vap->vap_name);
     if (!svc) {
-        wifi_util_info_print(WIFI_SRI, "%s:%d: Service not found for vap_name %s\n", __func__, __LINE__, lnf_vap_info->vap_name);
+        wifi_util_info_print(WIFI_SRI, "%s:%d: Service not found for vap_name %s\n", __func__, __LINE__, vap_info->vap_name);
         return -1;
     }
 

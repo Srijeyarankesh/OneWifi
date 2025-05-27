@@ -122,7 +122,6 @@ static int update_lnf_vap_as_per_hotspot_enabled(wifi_vap_info_t *lnf_vap_info, 
 void process_managed_wifi_enable()
 {
     wifi_util_info_print(WIFI_SRI, "%s:%d: Inside function\n", __func__, __LINE__);
-    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     wifi_vap_info_t *hotspot5g_vap_info = NULL;
 
     // Traverse radios starting from index 1 (defer radio 0)
@@ -2264,7 +2263,7 @@ webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc
                     hotspot_cfg_sem_signal(status);
                     wifi_util_info_print(WIFI_CTRL,":%s:%d xfinity blob cfg status:%d\n", __func__, __LINE__, ret);
                     process_managed_wifi_enable();
-		    wifi_util_info_print(WIFI_SRI,"%s:%d Successfully called the process_managed_wifi_enable function \n"__func__,__LINE__);
+		    wifi_util_info_print(WIFI_SRI,"%s:%d Successfully called the process_managed_wifi_enable function \n",__func__,__LINE__);
 		    webconfig_cac_apply(ctrl, &data->u.decoded);
                     if (is_6g_supported_device((&(get_wifimgr_obj())->hal_cap.wifi_prop))) {
                         wifi_util_info_print(WIFI_CTRL,"6g supported device add rnr of 6g\n");
