@@ -2944,7 +2944,7 @@ int update_vap_params_to_hal_and_db(wifi_vap_info_t *vap, int radio_indx, bool e
     tmp_vap_map.vap_array[0].u.bss_info.enabled = enable_or_disable;
     vap_svc_t *svc = get_svc_by_name(ctrl, vap->vap_name);
     if (!svc) {
-        wifi_util_info_print(WIFI_SRI, "%s:%d: Service not found for vap_name %s\n", __func__, __LINE__, vap_info->vap_name);
+        wifi_util_info_print(WIFI_SRI, "%s:%d: Service not found for vap_name %s\n", __func__, __LINE__, vap->vap_name);
         return -1;
     }
 
