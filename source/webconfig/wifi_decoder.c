@@ -1662,7 +1662,7 @@ webconfig_error_t decode_vap_common_object(const cJSON *vap, wifi_vap_info_t *va
     vap_info->u.bss_info.beaconRate = param->valuedouble;
 
     decode_param_integer(vap, "SpeedTier", param);
-    vap_info->u.bss_info.am_config.npc.speedTier = param->valuedouble;
+    vap_info->u.bss_info.am_config.npc.speed_tier = param->valuedouble;
 
     // WmmNoAck
     decode_param_integer(vap, "WmmNoAck", param);
