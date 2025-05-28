@@ -580,6 +580,7 @@ static int update_vap_info_managed_guest(void *data, void *amenities_blob, wifi_
         snprintf(vap_info->u.bss_info.ssid, sizeof(vap_info->u.bss_info.ssid), "%s", ssid);
         memset(&vap_info->u.bss_info.security.repurposed_radius,0,sizeof(vap_info->u.bss_info.security.repurposed_radius));
         vap_info->u.bss_info.am_config.npc.speed_tier = 0;
+        vap_info->u.bss_info.mdu_enabled = false;
         snprintf(vap_info->u.bss_info.security.u.key.key, sizeof(vap_info->u.bss_info.security.u.key.key), "%s", password);
         strncpy(vap_info->repurposed_vap_name,"",(strlen(repurposed_vap_name) + 1));
     }
