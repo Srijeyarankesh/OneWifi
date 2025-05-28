@@ -481,7 +481,7 @@ int get_managed_guest_bridge(char *brval, unsigned long length, unsigned int rad
     memset(&data, 0, sizeof(raw_data_t));
     char str[32];
     memset(str, 0, sizeof(str));
-    snprintf(str, sizeof(str), "Device.LAN.Bridge.%d.Name", radio_index);
+    snprintf(str, sizeof(str), "Device.LAN.Bridge.%d.Name", radio_index + 1);
 
     rc = get_bus_descriptor()->bus_data_get_fn(&g_wifi_mgr->ctrl.handle, str, &data);
     if (data.data_type != bus_data_type_string) {
@@ -512,7 +512,7 @@ int set_managed_guest_interfaces(char *interface_name, unsigned int radio_index)
     wifi_mgr_t *g_wifi_mgr = get_wifimgr_obj();
      char str[32];
     memset(str, 0, sizeof(str));
-    snprintf(str, sizeof(str), "Device.LAN.Bridge.%d.WiFiInterfaces", radio_index);
+    snprintf(str, sizeof(str), "Device.LAN.Bridge.%d.WiFiInterfaces", radio_index + 1);
     rc = get_bus_descriptor()->bus_set_string_fn(&g_wifi_mgr->ctrl.handle, str,
         interface_name);
     if (rc != bus_error_success) {

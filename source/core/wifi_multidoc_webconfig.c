@@ -789,22 +789,19 @@ static int connected_subdoc_handler(void *blob, void *amenities_blob, char *vap_
         num_vaps = get_list_of_vap_names(&data->u.decoded.hal_cap.wifi_prop, vap_names, MAX_NUM_RADIOS, 1, VAP_PREFIX_LNF_PSK);
         unsigned int radio_index;
         wifi_util_error_print(WIFI_SRI, "%s: num_vaps =%d \n", __func__,num_vaps);
-        for (i =0; i < num_vaps; i++) {
+        for (i = 0; i < num_vaps; i++) {
             vap_index = convert_vap_name_to_index(&data->u.decoded.hal_cap.wifi_prop, vap_names[i]);
-            lnf_psk_ifname = get_interface_name_for_vap_index(vap_index,(&data->u.decoded.hal_cap.wifi_prop));
+            lnf_psk_ifname = get_interface_name_for_vap_index(vap_index, (&data->u.decoded.hal_cap.wifi_prop));
 
-            if ((lnf_psk_ifname != NULL) &&(strlen(managed_interfaces) == 0) && managed_wifi_enabled) {
-                snprintf(managed_interfaces,sizeof(managed_interfaces),"ManagedWifi:%s",*lnf_psk_ifname);
-            } else if ((lnf_psk_ifname != NULL) && managed_wifi_enabled) {
-               strncat(managed_interfaces,",",2);
-               strncat(managed_interfaces,*lnf_psk_ifname,strlen(*lnf_psk_ifname));
+            if ((lnf_psk_ifname != NULL) && managed_wifi_enabled) {
+                snprintf(managed_interfaces, sizeof(managed_interfaces), "ManagedWifi:%s", lnf_psk_ifname);
             } else {
                 wifi_util_error_print(WIFI_SRI, "%s: managed_wifi_enabled is false \n", __func__);
-                strncpy(managed_interfaces,"ManagedWifi:",sizeof(managed_interfaces)-1);
+                strncpy(managed_interfaces, "ManagedWifi:", sizeof(managed_interfaces) - 1);
             }
             radio_index = get_radio_index_for_vap_index(&data->u.decoded.hal_cap.wifi_prop, vap_index);
             set_managed_guest_interfaces(managed_interfaces, radio_index);
-            wifi_util_error_print(WIFI_SRI, "%s: managed_interfaces =%s \n", __func__,managed_interfaces);
+            wifi_util_error_print(WIFI_SRI, "%s: managed_interfaces =%s \n", __func__, managed_interfaces);
         }
     }
     ret = RETURN_OK;
