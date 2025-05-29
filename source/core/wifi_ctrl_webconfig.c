@@ -22,7 +22,6 @@
 #include <string.h> /* strdup() */
 #include <stdlib.h>
 #include "const.h"
-#include "services/vap_svc.h"
 #include "wifi_hal.h"
 #include "wifi_ctrl.h"
 #include "wifi_mgr.h"

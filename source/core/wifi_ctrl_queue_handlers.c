@@ -17,11 +17,9 @@
   limitations under the License.
  **************************************************************************/
 
-#include <setjmp.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <sys/stat.h>
-#include "services/vap_svc.h"
 #include "wifi_hal.h"
 #include "wifi_ctrl.h"
 #include "wifi_mgr.h"
@@ -727,8 +725,9 @@ void process_xfinity_vaps(wifi_hotspot_action_t param, bool hs_evt)
 
     for(int radio_indx = 0; radio_indx < num_radios; ++radio_indx) {
         wifi_vap_info_map_t *wifi_vap_map = (wifi_vap_info_map_t *)get_wifidb_vap_map(radio_indx);
-        wifi_vap_info_t *lnf_vap = (wifi_vap_info_t *)getLnfApFromRadioIndex(radio_indx, VAP_PREFIX_LNF_PSK);
-        if (strstr(lnf_vap->vap_name, NAME_FREQUENCY_2_4_G) != NULL)
+        UINT apIndex = getLnfApFromRadioIndex(radio_indx, VAP_PREFIX_LNF_PSK);
+        wifi_vap_info_t *lnf_vap = get_wifidb_vap_parameters(apIndex);
+        if (lnf_vap && strstr(lnf_vap->vap_name, NAME_FREQUENCY_2_4_G) != NULL)
         {
             lnf_2g_vap = lnf_vap;
         }
@@ -744,7 +743,7 @@ void process_xfinity_vaps(wifi_hotspot_action_t param, bool hs_evt)
 
             rdk_vap_info = get_wifidb_rdk_vap_info(wifi_vap_map->vap_array[j].vap_index);
             if (rdk_vap_info == NULL) {
-                wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to get rdk vap info for index %d\n",
+                wifi_util_error_print(WIFI_SRI, "%s:%d Failed to get rdk vap info for index %d\n",
                     __func__, __LINE__, wifi_vap_map->vap_array[j].vap_index);
                 continue;
             }
@@ -761,7 +760,7 @@ void process_xfinity_vaps(wifi_hotspot_action_t param, bool hs_evt)
                     sec_5g_enabled = rfc_param->hotspot_secure_5g_last_enabled;
                     sec_6g_enabled = rfc_param->hotspot_secure_6g_last_enabled;
                 }
-                wifi_util_dbg_print(WIFI_CTRL," vap_name is %s and bool is %d:%d:%d:%d:%d:%d\n",tmp_vap_map.vap_array[0].vap_name,open_2g_enabled,open_5g_enabled,open_6g_enabled,sec_2g_enabled,sec_5g_enabled,sec_6g_enabled);
+                wifi_util_dbg_print(WIFI_SRI," vap_name is %s and bool is %d:%d:%d:%d:%d:%d\n",tmp_vap_map.vap_array[0].vap_name,open_2g_enabled,open_5g_enabled,open_6g_enabled,sec_2g_enabled,sec_5g_enabled,sec_6g_enabled);
 
                 if ((strcmp(tmp_vap_map.vap_array[0].vap_name,"hotspot_open_2g") == 0) && open_2g_enabled)
                     tmp_vap_map.vap_array[0].u.bss_info.enabled = true;
@@ -781,14 +780,14 @@ void process_xfinity_vaps(wifi_hotspot_action_t param, bool hs_evt)
                 else if ((strcmp(tmp_vap_map.vap_array[0].vap_name,"hotspot_secure_6g") == 0) && sec_6g_enabled)
                     tmp_vap_map.vap_array[0].u.bss_info.enabled = true;
 
-                wifi_util_dbg_print(WIFI_CTRL,"enabled is %d\n",tmp_vap_map.vap_array[0].u.bss_info.enabled);
+                wifi_util_dbg_print(WIFI_SRI,"enabled is %d\n",tmp_vap_map.vap_array[0].u.bss_info.enabled);
             }
             if (isVapHotspotSecure5g(tmp_vap_map.vap_array[0].vap_index)) {
                 hotspot_5g_enabled = tmp_vap_map.vap_array[0].u.bss_info.enabled;
                 wifi_util_info_print(WIFI_SRI,"%s:%d Have copied the Hotspot Secure 5G attributes to another variable\n",__func__,__LINE__);
             }
             if(pub_svc->update_fn(pub_svc,radio_indx, &tmp_vap_map, rdk_vap_info) != RETURN_OK) {
-                wifi_util_error_print(WIFI_CTRL, "%s:%d Unable to create vaps\n", __func__,__LINE__);
+                wifi_util_error_print(WIFI_SRI, "%s:%d Unable to create vaps\n", __func__,__LINE__);
                 if(hs_evt) {
                     send_hotspot_status(wifi_vap_map->vap_array[j].vap_name, false);
                }
