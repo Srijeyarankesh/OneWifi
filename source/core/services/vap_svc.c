@@ -123,13 +123,14 @@ int update_acl_entries(wifi_vap_info_map_t *tgt_vap_map)
 
     for (i = 0; i < tgt_vap_map->num_vaps; i++) {
         vap_index = tgt_vap_map->vap_array[i].vap_index;
+        wifi_util_info_print(WIFI_CTRL, "%s:%d:SREESH calling wifi_delApAclDevices for vap_index %d\n", __func__, __LINE__, vap_index);
 #ifdef NL80211_ACL
         wifi_hal_delApAclDevices(vap_index);
 #else
         wifi_delApAclDevices(vap_index);
 #endif
         vap_info = get_wifidb_rdk_vap_info(vap_index);
-
+        wifi_util_info_print("%s:%d:SREESH Finished calling the wifi_delApAclDevices for vap_index %d\n", __func__, __LINE__, vap_info, vap_index);
         if ((vap_info == NULL) || (vap_info->acl_map == NULL)) {
             return RETURN_ERR;
         }
@@ -139,20 +140,20 @@ int update_acl_entries(wifi_vap_info_map_t *tgt_vap_map)
             if (acl_entry->mac != NULL) {
                 memcpy(&acl_device_mac,&acl_entry->mac,sizeof(mac_address_t));
                 to_mac_str(acl_device_mac, mac_str);
-                wifi_util_dbg_print(WIFI_CTRL, "%s:%d: calling wifi_addApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, mac_str, vap_index);
+                wifi_util_info_print(WIFI_CTRL, "%s:%d:SREESH calling wifi_addApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, mac_str, vap_index);
 #ifdef NL80211_ACL
                 if (wifi_hal_addApAclDevice(vap_index, (CHAR *) mac_str) != RETURN_OK) {
 #else
                 if (wifi_addApAclDevice(vap_index, (CHAR *) mac_str) != RETURN_OK) {
 #endif
-                    wifi_util_error_print(WIFI_CTRL,"%s: wifi_addApAclDevice failed. vap_index:%d MAC:'%s'\n",__FUNCTION__, vap_index, mac_str);
+                    wifi_util_error_print(WIFI_CTRL,"%s:SREESH wifi_addApAclDevice failed. vap_index:%d MAC:'%s'\n",__FUNCTION__, vap_index, mac_str);
                 }
             }
             acl_entry = hash_map_get_next(vap_info->acl_map,acl_entry);
         }
         vap_info->is_mac_filter_initialized = true;
+        wifi_util_info_print(WIFI_CTRL, "%s:%d:SREESH Finished calling the wifi_addApAclDevice for vap_index %d and setting the is_mac_filter_initialized to true\n", __func__, __LINE__, vap_index);
     }
-
     return RETURN_OK;
 }
 

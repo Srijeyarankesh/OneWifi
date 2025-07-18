@@ -1424,12 +1424,12 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
             current_config = &mgr->radio_config[radio_index].vaps.rdk_vap_array[vap_index];
 
             if (new_config == NULL || current_config == NULL) {
-                wifi_util_error_print(WIFI_MGR,"%s %d NULL pointer \n", __func__, __LINE__);
+                wifi_util_error_print(WIFI_MGR,"%s %d SREESH NULL pointer \n", __func__, __LINE__);
                 return RETURN_ERR;
             }
 
             if (new_config->acl_map == current_config->acl_map) {
-                wifi_util_dbg_print(WIFI_MGR,"%s %d Same data returning \n", __func__, __LINE__);
+                wifi_util_info_print(WIFI_MGR,"%s %d SREESH Same data returning \n", __func__, __LINE__);
                 return RETURN_OK;
             }
 
@@ -1444,36 +1444,40 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
                         to_mac_str(current_acl_entry->mac, current_mac_str);
                         str_tolower(current_mac_str);
                         if ((new_config->acl_map == NULL) || (hash_map_get(new_config->acl_map, current_mac_str) == NULL)) {
-                            wifi_util_info_print(WIFI_MGR, "%s:%d: calling wifi_delApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, current_mac_str, current_config->vap_index);
+                            wifi_util_info_print(WIFI_MGR, "%s:%d:SREESH calling wifi_delApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, current_mac_str, current_config->vap_index);
 #ifdef NL80211_ACL
 			    if (wifi_hal_delApAclDevice(current_config->vap_index, current_mac_str) != RETURN_OK) {
 #else
                             if (wifi_delApAclDevice(current_config->vap_index, current_mac_str) != RETURN_OK) {
 #endif
-                                wifi_util_error_print(WIFI_MGR, "%s:%d: wifi_delApAclDevice failed. vap_index %d, mac %s \n",
+                                wifi_util_error_print(WIFI_MGR, "%s:%d: SREESH wifi_delApAclDevice failed. vap_index %d, mac %s \n",
                                         __func__, __LINE__, vap_index, current_mac_str);
                                 ret = RETURN_ERR;
                                 goto free_data;
                             }
                             current_acl_entry = hash_map_get_next(current_config->acl_map, current_acl_entry);
                             temp_acl_entry = hash_map_remove(current_config->acl_map, current_mac_str);
+			    wifi_util_info_print(WIFI_MGR, "%s:%d SREESH Removing the ACL entry from the ACL hash map\n",__func__,__LINE__);
                             if (temp_acl_entry != NULL) {
                                 snprintf(macfilterkey, sizeof(macfilterkey), "%s-%s", current_config->vap_name, current_mac_str);
-
+                                wifi_util_info_print(WIFI_MGR, "%s:%d SREESH The macfilterkey is %s\n",__func__,__LINE__,macfilterkey);
                                 wifidb_update_wifi_macfilter_config(macfilterkey, temp_acl_entry, false);
                                 free(temp_acl_entry);
                             }
                         } else {
                             current_acl_entry = hash_map_get_next(current_config->acl_map, current_acl_entry);
+			    wifi_util_info_print(WIFI_MGR,"%s:%d SREESH Next Mac Entry is iterated\n",__func__,__LINE__);
                         }
                     }
                 }
             } else {
+		wifi_util_info_print(WIFI_MGR,"%s:%d SREESH About to delete the entry from ACL hash map for vap index %d\n"__func__,__LINE__,vap_index);
 #ifdef NL80211_ACL
                 wifi_hal_delApAclDevices(vap_index);
 #else
 		wifi_delApAclDevices(vap_index);
 #endif
+		wifi_util_info_print(WIFI_MGR,"%s:%d SREESH Setting the Mac Filter initialized to true\n",__func__,__LINE__);
                 current_config->is_mac_filter_initialized = true;
             }
 
@@ -1484,13 +1488,13 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
                     str_tolower(new_mac_str);
                     acl_entry_t *check_acl_entry = hash_map_get(current_config->acl_map, new_mac_str);
                     if (check_acl_entry == NULL) { //mac is in new_config but not in running config need to update HAL
-                        wifi_util_info_print(WIFI_MGR, "%s:%d: calling wifi_addApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, new_mac_str, current_config->vap_index);
+                        wifi_util_info_print(WIFI_MGR, "%s:%d: SREESH calling wifi_addApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, new_mac_str, current_config->vap_index);
 #ifdef NL80211_ACL
                         if (wifi_hal_addApAclDevice(current_config->vap_index, new_mac_str) != RETURN_OK) {
 #else
                         if (wifi_addApAclDevice(current_config->vap_index, new_mac_str) != RETURN_OK) {
 #endif
-                            wifi_util_error_print(WIFI_MGR, "%s:%d: wifi_addApAclDevice failed. vap_index %d, MAC %s \n",
+                            wifi_util_error_print(WIFI_MGR, "%s:%d: SREESH wifi_addApAclDevice failed. vap_index %d, MAC %s \n",
                                     __func__, __LINE__, vap_index, new_mac_str);
                             ret = RETURN_ERR;
                             goto free_data;
@@ -1499,16 +1503,16 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
                         temp_acl_entry = (acl_entry_t *)malloc(sizeof(acl_entry_t));
                         memset(temp_acl_entry, 0, (sizeof(acl_entry_t)));
                         memcpy(temp_acl_entry, new_acl_entry, sizeof(acl_entry_t));
-
+                        
                         hash_map_put(current_config->acl_map,strdup(new_mac_str),temp_acl_entry);
                         snprintf(macfilterkey, sizeof(macfilterkey), "%s-%s", current_config->vap_name, new_mac_str);
-
+                        wifi_util_info_print(WIFI_MGR,"%s:%d SREESH The mac filter key is %s and updating the MacFilter DB\n",__func__,__LINE__,macfilterkey);
                         wifidb_update_wifi_macfilter_config(macfilterkey, temp_acl_entry, true);
                     } else {
                         if (strncmp(check_acl_entry->device_name, new_acl_entry->device_name, sizeof(check_acl_entry->device_name)-1) != 0) {
                             strncpy(check_acl_entry->device_name, new_acl_entry->device_name, sizeof(check_acl_entry->device_name)-1);
                             snprintf(macfilterkey, sizeof(macfilterkey), "%s-%s", current_config->vap_name, new_mac_str);
-
+                            wifi_util_info_print(WIFI_MGR,"%s:%d SREESH The mac filter key is %s and updating the MacFilter DB\n",__func__,__LINE__,macfilterkey);
                             wifidb_update_wifi_macfilter_config(macfilterkey, check_acl_entry, true);
                         }
                     }
