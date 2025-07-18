@@ -1471,7 +1471,7 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
                     }
                 }
             } else {
-		wifi_util_info_print(WIFI_MGR,"%s:%d SREESH About to delete the entry from ACL hash map for vap index %d\n"__func__,__LINE__,vap_index);
+		wifi_util_info_print(WIFI_MGR,"%s:%d SREESH About to delete the entry from ACL hash map for vap index %d\n",__func__,__LINE__,vap_index);
 #ifdef NL80211_ACL
                 wifi_hal_delApAclDevices(vap_index);
 #else
