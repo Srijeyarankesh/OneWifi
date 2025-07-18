@@ -130,7 +130,7 @@ int update_acl_entries(wifi_vap_info_map_t *tgt_vap_map)
         wifi_delApAclDevices(vap_index);
 #endif
         vap_info = get_wifidb_rdk_vap_info(vap_index);
-        wifi_util_info_print("%s:%d:SREESH Finished calling the wifi_delApAclDevices for vap_index %d\n", __func__, __LINE__, vap_info, vap_index);
+        wifi_util_info_print(WIFI_CTRL,"%s:%d:SREESH Finished calling the wifi_delApAclDevices for vap_index %d\n", __func__, __LINE__, vap_index);
         if ((vap_info == NULL) || (vap_info->acl_map == NULL)) {
             return RETURN_ERR;
         }
