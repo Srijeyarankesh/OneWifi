@@ -1725,7 +1725,7 @@ int channel_mode_conversion(BOOL *auto_channel_bool, char *auto_channel_string,
         } else if (strcmp(auto_channel_string, "manual") == 0) {
             *auto_channel_bool = false;
             return RETURN_OK;
-        } else if (strncmp(auto_channel_string, "") == 0) {
+        } else if (strcmp(auto_channel_string, "") == 0) {
             wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of auto_channel_bool = %d\n", __func__, __LINE__, *auto_channel_bool);
             return RETURN_OK;
         }
