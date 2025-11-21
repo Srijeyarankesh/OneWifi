@@ -1020,13 +1020,13 @@ webconfig_error_t translator_ovsdb_init(webconfig_subdoc_data_t *data)
             continue;
         }
         oper_param = &decoded_params->radios[radioIndx].oper;
-        wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Value of radio index = %d and value of autochannelenabled = %d and static ovsdb default autochannelenabled = %d\n",__func__,__LINE__, radioIndx, oper_param->autochannelenabled, default_decoded_params->radios[radioIndx].oper.autochannelenabled);
+        wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Value of radio index = %d and value of autochannelenabled = %d and static ovsdb default autochannelenabled = %d\n",__func__,__LINE__, radioIndx, oper_param->autoChannelEnabled, default_decoded_params->radios[radioIndx].oper.autoChannelEnabled);
         memcpy(&default_decoded_params->radios[radioIndx].oper, oper_param,
             sizeof(wifi_radio_operationParam_t));
         strncpy(default_decoded_params->radios[radioIndx].name,
             decoded_params->radios[radioIndx].name,
             sizeof(default_decoded_params->radios[radioIndx].name));
-        wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH I have memcpy the structure to ovsdb. Now, the ovsdb value of radio index = %d and value of ovsdb default autochannelenabled = %d\n",__func__,__LINE__, radioIndx, default_decoded_params->radios[radioIndx].oper.autochannelenabled);
+        wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH I have memcpy the structure to ovsdb. Now, the ovsdb value of radio index = %d and value of ovsdb default autochannelenabled = %d\n",__func__,__LINE__, radioIndx, default_decoded_params->radios[radioIndx].oper.autoChannelEnabled);
         default_decoded_params->radios[radioIndx].vaps.vap_map.num_vaps =
             decoded_params->hal_cap.wifi_prop.radiocap[i].maxNumberVAPs;
     }
