@@ -1713,6 +1713,7 @@ int channel_mode_conversion(BOOL *auto_channel_bool, char *auto_channel_string,
     int auto_channel_strlen, unsigned int conv_type)
 {
     if ((auto_channel_bool == NULL) || (auto_channel_string == NULL)) {
+        wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH auto_channel_bool or auto_channel_string is NULL\n", __func__, __LINE__);
         return RETURN_ERR;
     }
 
@@ -1726,19 +1727,21 @@ int channel_mode_conversion(BOOL *auto_channel_bool, char *auto_channel_string,
             *auto_channel_bool = false;
             return RETURN_OK;
         } else if (strcmp(auto_channel_string, "") == 0) {
-            wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH Value of auto_channel_bool = %d\n", __func__, __LINE__, *auto_channel_bool);
+            wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Value of auto_channel_bool = %d\n", __func__, __LINE__, *auto_channel_bool);
             return RETURN_OK;
         }
     } else if (conv_type == ENUM_TO_STRING) {
         if (*auto_channel_bool == true) {
             snprintf(auto_channel_string, auto_channel_strlen, "%s", "auto");
+            wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Value of auto_channel_bool = %d and setting channel as %s\n", __func__, __LINE__, *auto_channel_bool, auto_channel_string);
             return RETURN_OK;
         } else if (*auto_channel_bool == false) {
             snprintf(auto_channel_string, auto_channel_strlen, "%s", "manual");
+            wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Value of auto_channel_bool = %d and setting channel as %s\n", __func__, __LINE__, *auto_channel_bool, auto_channel_string);
             return RETURN_OK;
         }
     }
-
+    wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Value of auto_channel_bool = %d and auto_channel_string = %s\n", __func__, __LINE__, *auto_channel_bool, auto_channel_string);
     return RETURN_ERR;
 }
 

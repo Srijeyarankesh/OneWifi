@@ -2967,6 +2967,8 @@ webconfig_error_t decode_radio_object(const cJSON *obj_radio, rdk_wifi_radio_t *
     decode_param_bool(obj_radio, "AutoChannelEnabled", param);
     radio_info->autoChannelEnabled = (param->type & cJSON_True) ? true : false;
 
+    wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH AutoChannelEnabled = %d and radio name %s\n",__func__,__LINE__,radio_info->autoChannelEnabled,radio->name);
+
     // DFSEnable
     decode_param_bool(obj_radio, "DFSEnable", param);
     radio_info->DfsEnabled = (param->type & cJSON_True) ? true : false;

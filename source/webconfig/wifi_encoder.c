@@ -147,6 +147,8 @@ webconfig_error_t encode_radio_object(const rdk_wifi_radio_t *radio, cJSON *radi
     // AutoChannelEnabled
     cJSON_AddBoolToObject(radio_object, "AutoChannelEnabled", radio_info->autoChannelEnabled);
 
+    wifi_util_info_print(WIFI_CTRL,"%s:%d SREESH AutoChannelEnabled %d for Radio Name %s\n", __func__, __LINE__, radio_info->autoChannelEnabled, radio->name);
+
     // Channel
     cJSON_AddNumberToObject(radio_object, "Channel", radio_info->channel);
 
