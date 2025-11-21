@@ -5305,7 +5305,7 @@ webconfig_error_t translate_radio_object_from_ovsdb(const struct schema_Wifi_Rad
     wifi_freq_bands_t band_enum;
     wifi_countrycode_type_t country_code;
     wifi_channelBandwidth_t ht_mode_enum;
-    int radio_index;
+    int radio_index = 0;
 
     if ((row == NULL) || (oper_param == NULL)) {
         wifi_util_error_print(WIFI_WEBCONFIG,"%s:%d: input params is NULL\n", __func__, __LINE__);
