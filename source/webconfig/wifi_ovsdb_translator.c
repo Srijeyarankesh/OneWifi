@@ -1786,6 +1786,7 @@ webconfig_error_t   translate_radio_object_to_ovsdb_radio_config_for_mesh_sta(we
     hal_cap = &decoded_params->hal_cap;
     memcpy(&webconfig_ovsdb_data.u.decoded.hal_cap, hal_cap, sizeof(wifi_hal_capability_t));
 
+    webconfig_ovsdb_data.u.decoded.num_radios = decoded_params->num_radios;
     wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Calling translator_ovsdb_init below\n",__func__,__LINE__);
     translator_ovsdb_init(data);
 
@@ -1876,6 +1877,7 @@ webconfig_error_t   translate_radio_object_to_ovsdb_radio_config_for_dml(webconf
     hal_cap = &decoded_params->hal_cap;
     memcpy(&webconfig_ovsdb_data.u.decoded.hal_cap, hal_cap, sizeof(wifi_hal_capability_t));
 
+    webconfig_ovsdb_data.u.decoded.num_radios = decoded_params->num_radios;
     wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Calling translator_ovsdb_init below\n",__func__,__LINE__);
     translator_ovsdb_init(data);
 
