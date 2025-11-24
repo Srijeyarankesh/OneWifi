@@ -420,6 +420,19 @@ void vif_config_ovs_schema_dump(const struct schema_Wifi_VIF_Config *vif)
     return;
 }
 
+void print_acs_configs()
+{
+    wifi_util_info_print(WIFI_WEBCONFIG, "%s:%d SREESH num_radios %d\n", __func__, __LINE__,
+        webconfig_ovsdb_data.u.decoded.num_radios);
+    for (int i = 0; i < webconfig_ovsdb_data.u.decoded.num_radios; i++) {
+        wifi_util_dbg_print(WIFI_WEBCONFIG,
+            "%s:%d SREESH radio %d and webconfig_ovsdb_data autochannelenabled = %d and "
+            "webconfig_ovsdb_default_data autochannelenabled = %d\n",
+            __func__, __LINE__, i, webconfig_ovsdb_data.u.decoded.radios[i].oper.autoChannelEnabled,
+            webconfig_ovsdb_default_data.u.decoded.radios[i].oper.autoChannelEnabled);
+    }
+}
+
 void vif_state_ovs_schema_dump(const struct schema_Wifi_VIF_State *vif)
 {
     int i = 0;
@@ -1026,7 +1039,7 @@ webconfig_error_t translator_ovsdb_init(webconfig_subdoc_data_t *data)
         strncpy(default_decoded_params->radios[radioIndx].name,
             decoded_params->radios[radioIndx].name,
             sizeof(default_decoded_params->radios[radioIndx].name));
-        wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH I have memcpy the structure to ovsdb. Now, the ovsdb value of radio index = %d and value of ovsdb default autochannelenabled = %d\n",__func__,__LINE__, radioIndx, default_decoded_params->radios[radioIndx].oper.autoChannelEnabled);
+        wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH I have memcpy the structure to default ovsdb. Now, the ovsdb value of radio index = %d and value of ovsdb default autochannelenabled = %d\n",__func__,__LINE__, radioIndx, default_decoded_params->radios[radioIndx].oper.autoChannelEnabled);
         default_decoded_params->radios[radioIndx].vaps.vap_map.num_vaps =
             decoded_params->hal_cap.wifi_prop.radiocap[i].maxNumberVAPs;
     }
@@ -1124,7 +1137,7 @@ webconfig_error_t webconfig_ovsdb_encode(webconfig_t *config,
     // rdk_wifi_radio_state change is added to avoid redundant config update from ovsm
     // this redundant update is triggered as part of ovsm config table update
     rdk_wifi_radio_t *rdk_wifi_radio_state;
-    wifi_util_info_print(WIFI_WEBCONFIG, "%s:%d: OVSM encode subdoc type %d\n", __func__, __LINE__,
+    wifi_util_info_print(WIFI_WEBCONFIG, "%s:%d: SREESH OVSM encode subdoc type %d\n", __func__, __LINE__,
         type);
 
     pthread_mutex_lock(&webconfig_data_lock);
@@ -1140,7 +1153,7 @@ webconfig_error_t webconfig_ovsdb_encode(webconfig_t *config,
         pthread_mutex_unlock(&webconfig_data_lock);
         return webconfig_error_encode;
     }
-
+    print_acs_configs();
     memcpy(rdk_wifi_radio_state, webconfig_ovsdb_data.u.decoded.radios,
         (MAX_NUM_RADIOS * sizeof(rdk_wifi_radio_t)));
     clone_maclist_map(webconfig_ovsdb_data.u.decoded.num_radios,
@@ -1149,7 +1162,7 @@ webconfig_error_t webconfig_ovsdb_encode(webconfig_t *config,
     // Here webconfig_ovsdb_data's decoded_params will be updated.
     if (webconfig_encode(config, &webconfig_ovsdb_data, type) != webconfig_error_none) {
         *str = NULL;
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: OVSM encode failed\n", __func__, __LINE__);
+        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: SREESH OVSM encode failed\n", __func__, __LINE__);
         free_maclist_map(webconfig_ovsdb_data.u.decoded.num_radios, rdk_wifi_radio_state);
         free(rdk_wifi_radio_state);
         pthread_mutex_unlock(&webconfig_data_lock);
@@ -1164,7 +1177,7 @@ webconfig_error_t webconfig_ovsdb_encode(webconfig_t *config,
     // Here new decoded_params will be compared with the old rdk_wifi_radio_state
     // for configuration change
     if (is_ovs_vif_config_changed(type, &webconfig_ovsdb_data, rdk_wifi_radio_state) == false) {
-        wifi_util_dbg_print(WIFI_WEBCONFIG, "%s:%d: No change in config for subdoc type : %d\n",
+        wifi_util_dbg_print(WIFI_WEBCONFIG, "%s:%d: SREESH No change in config for subdoc type : %d\n",
             __func__, __LINE__, type);
         *str = NULL;
         free_maclist_map(webconfig_ovsdb_data.u.decoded.num_radios, rdk_wifi_radio_state);
@@ -1177,7 +1190,8 @@ webconfig_error_t webconfig_ovsdb_encode(webconfig_t *config,
     *str = webconfig_ovsdb_raw_data_ptr;
     free_maclist_map(webconfig_ovsdb_data.u.decoded.num_radios, rdk_wifi_radio_state);
     free(rdk_wifi_radio_state);
-
+    wifi_util_info_print(WIFI_WEBCONFIG, "%s:%d: SREESH OVSM encode done and calling print_acs_configs\n", __func__, __LINE__);
+    print_acs_configs();
     pthread_mutex_unlock(&webconfig_data_lock);
 
     return webconfig_error_none;
@@ -1189,6 +1203,9 @@ webconfig_error_t webconfig_ovsdb_decode(webconfig_t *config, const char *str,
     pthread_mutex_lock(&webconfig_data_lock);
     webconfig_ovsdb_data.u.decoded.external_protos = (webconfig_external_ovsdb_t *)data;
     webconfig_ovsdb_data.descriptor = webconfig_data_descriptor_translate_to_ovsdb;
+    wifi_util_info_print(WIFI_WEBCONFIG, "%s:%d: SREESH Calling OVSM decode subdoc type %d and calling print_acs_configs\n", __func__, __LINE__,
+        webconfig_ovsdb_data.type);
+    print_acs_configs();
 
     if (webconfig_decode(config, &webconfig_ovsdb_data, str) != webconfig_error_none) {
         //        *data = NULL;
@@ -1197,11 +1214,12 @@ webconfig_error_t webconfig_ovsdb_decode(webconfig_t *config, const char *str,
         return webconfig_error_decode;
     }
 
-    wifi_util_info_print(WIFI_WEBCONFIG, "%s:%d: OVSM decode subdoc type %d sucessfully\n",
+    wifi_util_info_print(WIFI_WEBCONFIG, "%s:%d: SREESH OVSM decode subdoc type %d sucessfully\n",
         __func__, __LINE__, webconfig_ovsdb_data.type);
     *type = webconfig_ovsdb_data.type;
     debug_external_protos(&webconfig_ovsdb_data, __func__, __LINE__);
     webconfig_data_free(&webconfig_ovsdb_data);
+    print_acs_configs();
     pthread_mutex_unlock(&webconfig_data_lock);
     return webconfig_error_none;
 }
@@ -1786,7 +1804,6 @@ webconfig_error_t   translate_radio_object_to_ovsdb_radio_config_for_mesh_sta(we
     hal_cap = &decoded_params->hal_cap;
     memcpy(&webconfig_ovsdb_data.u.decoded.hal_cap, hal_cap, sizeof(wifi_hal_capability_t));
 
-    webconfig_ovsdb_data.u.decoded.num_radios = decoded_params->num_radios;
     wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Calling translator_ovsdb_init below\n",__func__,__LINE__);
     translator_ovsdb_init(data);
 
@@ -1797,7 +1814,7 @@ webconfig_error_t   translate_radio_object_to_ovsdb_radio_config_for_mesh_sta(we
             continue;
         }
         oper_param = &decoded_params->radios[radio_index].oper;
-        wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Value of radio_index is %d and data.u.decoded autochannelEnabled is %d and webconfig_ovsdb_data.u.decoded autochannelenabled is %d\n",__func__,__LINE__, radio_index, oper_param->autoChannelEnabled, webconfig_ovsdb_data.u.decoded.radios[radio_index].oper.autoChannelEnabled);
+        wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Value of radio_index is %d and oper_param->autochannelEnabled is %d and webconfig_ovsdb_data.u.decoded autochannelenabled is %d\n",__func__,__LINE__, radio_index, oper_param->autoChannelEnabled, webconfig_ovsdb_data.u.decoded.radios[radio_index].oper.autoChannelEnabled);
         memcpy(&webconfig_ovsdb_data.u.decoded.radios[radio_index].oper, oper_param, sizeof(wifi_radio_operationParam_t));
         wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH After memcpy Value of radio index = %d and webconfig_ovsdb_data.u.decoded.radios[radio_index].oper.autoChannelEnabled is %d and decoded_params->radios[radio_index].oper.autoChannelEnabled is %d\n",__func__,__LINE__, radio_index, webconfig_ovsdb_data.u.decoded.radios[radio_index].oper.autoChannelEnabled, decoded_params->radios[radio_index].oper.autoChannelEnabled);
         strncpy(webconfig_ovsdb_data.u.decoded.radios[radio_index].name, decoded_params->radios[radio_index].name,  sizeof(webconfig_ovsdb_data.u.decoded.radios[radio_index].name));
@@ -1877,7 +1894,6 @@ webconfig_error_t   translate_radio_object_to_ovsdb_radio_config_for_dml(webconf
     hal_cap = &decoded_params->hal_cap;
     memcpy(&webconfig_ovsdb_data.u.decoded.hal_cap, hal_cap, sizeof(wifi_hal_capability_t));
 
-    webconfig_ovsdb_data.u.decoded.num_radios = decoded_params->num_radios;
     wifi_util_info_print(WIFI_WEBCONFIG,"%s:%d SREESH Calling translator_ovsdb_init below\n",__func__,__LINE__);
     translator_ovsdb_init(data);
 
