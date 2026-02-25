@@ -1817,9 +1817,6 @@ int webconfig_hal_mesh_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_dat
 int webconfig_hal_ignitewifi_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
 {
     unsigned int i, j;
-    unsigned int ap_index;
-    wifi_mgr_t *mgr = get_wifimgr_obj();
-    int radio_index, vap_array_index;
 
     for (i = 0; i < data->num_radios; i++) {
         for (j = 0; j < data->radios[i].vaps.vap_map.num_vaps; j++) {
@@ -1830,21 +1827,11 @@ int webconfig_hal_ignitewifi_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
                 continue;
             }
 
-            radio_index = convert_vap_name_to_radio_array_index(&mgr->hal_cap.wifi_prop, vap->vap_name);
-            vap_array_index = convert_vap_name_to_array_index(&mgr->hal_cap.wifi_prop, vap->vap_name);
+            wifi_util_info_print(WIFI_CTRL,
+                "%s:%d: Persisting link_quality_threshold=%f for vap=%s\n",
+                __func__, __LINE__, vap->link_quality_threshold, vap->vap_name);
 
-            if (radio_index < 0 || vap_array_index < 0) {
-                wifi_util_error_print(WIFI_CTRL, "%s:%d: Invalid radio_index=%d or vap_array_index=%d for vap=%s\n",
-                    __func__, __LINE__, radio_index, vap_array_index, vap->vap_name);
-                continue;
-            }
-
-            rdk_wifi_vap_info_t *mgr_rdk_vap = &mgr->radio_config[radio_index].vaps.rdk_vap_array[vap_array_index];
-            mgr_rdk_vap->link_quality_threshold = rdk_vap->link_quality_threshold;
-
-            wifi_util_info_print(WIFI_CTRL, "%s:%d: Applied link_quality_threshold=%f for vap=%s\n",
-                __func__, __LINE__, rdk_vap->link_quality_threshold, vap->vap_name);
-
+            /* Persist to OVSDB - the wifidb callback will sync back to mgr config */
             get_wifidb_obj()->desc.update_wifi_vap_info_fn(vap->vap_name, vap, rdk_vap);
         }
     }

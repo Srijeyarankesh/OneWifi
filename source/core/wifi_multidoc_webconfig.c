@@ -2164,7 +2164,7 @@ static pErr wifi_ignitewifi_exec_handler(void *blob)
         for (j = 0; j < data->u.decoded.radios[i].vaps.vap_map.num_vaps; j++) {
             wifi_vap_info_t *vap = &data->u.decoded.radios[i].vaps.vap_map.vap_array[j];
             if (is_vap_mesh_sta(&data->u.decoded.hal_cap.wifi_prop, vap->vap_index)) {
-                data->u.decoded.radios[i].vaps.rdk_vap_array[j].link_quality_threshold = link_quality_threshold;
+                vap->link_quality_threshold = link_quality_threshold;
                 wifi_util_dbg_print(WIFI_CTRL, "%s:%d: Set link_quality_threshold=%f for vap=%s\n",
                     __func__, __LINE__, link_quality_threshold, vap->vap_name);
             }
