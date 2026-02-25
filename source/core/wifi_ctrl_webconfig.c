@@ -1814,6 +1814,44 @@ int webconfig_hal_mesh_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_dat
     return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps);
 }
 
+int webconfig_hal_ignitewifi_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
+{
+    unsigned int i, j;
+    unsigned int ap_index;
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+    int radio_index, vap_array_index;
+
+    for (i = 0; i < data->num_radios; i++) {
+        for (j = 0; j < data->radios[i].vaps.vap_map.num_vaps; j++) {
+            wifi_vap_info_t *vap = &data->radios[i].vaps.vap_map.vap_array[j];
+            rdk_wifi_vap_info_t *rdk_vap = &data->radios[i].vaps.rdk_vap_array[j];
+
+            if (!is_vap_mesh_sta(&data->hal_cap.wifi_prop, vap->vap_index)) {
+                continue;
+            }
+
+            radio_index = convert_vap_name_to_radio_array_index(&mgr->hal_cap.wifi_prop, vap->vap_name);
+            vap_array_index = convert_vap_name_to_array_index(&mgr->hal_cap.wifi_prop, vap->vap_name);
+
+            if (radio_index < 0 || vap_array_index < 0) {
+                wifi_util_error_print(WIFI_CTRL, "%s:%d: Invalid radio_index=%d or vap_array_index=%d for vap=%s\n",
+                    __func__, __LINE__, radio_index, vap_array_index, vap->vap_name);
+                continue;
+            }
+
+            rdk_wifi_vap_info_t *mgr_rdk_vap = &mgr->radio_config[radio_index].vaps.rdk_vap_array[vap_array_index];
+            mgr_rdk_vap->link_quality_threshold = rdk_vap->link_quality_threshold;
+
+            wifi_util_info_print(WIFI_CTRL, "%s:%d: Applied link_quality_threshold=%f for vap=%s\n",
+                __func__, __LINE__, rdk_vap->link_quality_threshold, vap->vap_name);
+
+            get_wifidb_obj()->desc.update_wifi_vap_info_fn(vap->vap_name, vap, rdk_vap);
+        }
+    }
+
+    return RETURN_OK;
+}
+
 int webconfig_hal_mesh_sta_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
 {
     unsigned int num_vaps = 0;
@@ -2670,6 +2708,18 @@ webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc
                     webconfig_analytic_event_data_to_hal_apply(data);
                     ret = webconfig_hal_home_vap_apply(ctrl, &data->u.decoded);
                 }
+            }
+        break;
+
+        case webconfig_subdoc_type_ignitewifi:
+            if (data->descriptor & webconfig_data_descriptor_encoded) {
+                if (ctrl->webconfig_state & ctrl_webconfig_state_ignitewifi_cfg_rsp_pending) {
+                    ctrl->webconfig_state &= ~ctrl_webconfig_state_ignitewifi_cfg_rsp_pending;
+                    ret = webconfig_bus_apply(ctrl, &data->u.encoded);
+                }
+            } else {
+                ctrl->webconfig_state |= ctrl_webconfig_state_ignitewifi_cfg_rsp_pending;
+                ret = webconfig_hal_ignitewifi_apply(ctrl, &data->u.decoded);
             }
         break;
 

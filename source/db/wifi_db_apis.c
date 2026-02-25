@@ -2768,8 +2768,9 @@ int wifidb_update_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
         cfg.period = config->u.sta_info.scan_params.period;
         cfg.channel = config->u.sta_info.scan_params.channel.channel;
         cfg.freq_band = config->u.sta_info.scan_params.channel.band;
+        cfg.link_quality_threshold = (double)rdk_config->link_quality_threshold;
         strncpy(cfg.mfp_config,"Disabled",sizeof(cfg.mfp_config)-1);
-        wifi_util_dbg_print(WIFI_DB,"%s:%d:VAP Config update data cfg.radio_name=%s cfg.vap_name=%s cfg.ssid=%s cfg.enabled=%d\r\n", __func__, __LINE__, cfg.radio_name,cfg.vap_name,cfg.ssid,cfg.enabled);
+        wifi_util_dbg_print(WIFI_DB,"%s:%d:VAP Config update data cfg.radio_name=%s cfg.vap_name=%s cfg.ssid=%s cfg.enabled=%d cfg.link_quality_threshold=%f\r\n", __func__, __LINE__, cfg.radio_name,cfg.vap_name,cfg.ssid,cfg.enabled,cfg.link_quality_threshold);
     } else {
         strncpy(cfg.ssid, config->u.bss_info.ssid, (sizeof(cfg.ssid)-1));
         cfg.enabled = config->u.bss_info.enabled;
@@ -6166,6 +6167,7 @@ int wifidb_get_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
             config->u.sta_info.scan_params.period = pcfg->period;
             config->u.sta_info.scan_params.channel.channel = pcfg->channel;
             config->u.sta_info.scan_params.channel.band = pcfg->freq_band;
+            rdk_config->link_quality_threshold = (float)pcfg->link_quality_threshold;
         } else {
             if(strlen(pcfg->ssid) != 0) {
                 strncpy(config->u.bss_info.ssid,pcfg->ssid,(sizeof(config->u.bss_info.ssid)-1));

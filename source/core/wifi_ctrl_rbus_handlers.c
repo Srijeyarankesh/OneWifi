@@ -1496,6 +1496,25 @@ bus_error_t get_home_vap(char *name, raw_data_t *p_data, bus_user_data_t *user_d
     return bus_error_success;
 }
 
+extern void webconf_process_ignitewifi(const char *enb);
+bus_error_t get_ignitewifi(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void)user_data;
+    char *pTmp = NULL;
+
+    pTmp = (char *)p_data->raw_data.bytes;
+    if ((p_data->data_type != bus_data_type_string) || (pTmp == NULL)) {
+       wifi_util_error_print(WIFI_CTRL,"%s:%d wrong bus data_type:%x\n", __func__, __LINE__, p_data->data_type);
+       return bus_error_invalid_input;
+    }
+
+    wifidb_print("%s:%d [Start] Current time:[%llu]\r\n", __func__, __LINE__,
+        get_current_ms_time());
+    webconf_process_ignitewifi(pTmp);
+
+    return bus_error_success;
+}
+
 #if defined(RDKB_EXTENDER_ENABLED) || defined(WAN_FAILOVER_SUPPORTED)
 static void deviceModeHandler(char *event_name, raw_data_t *p_data, void *userData)
 {
@@ -3411,6 +3430,9 @@ void bus_register_handlers(wifi_ctrl_t *ctrl)
                                     { bus_data_type_string, true, 0, 0, 0, NULL } },
                                 { WIFI_WEBCONFIG_HOME_VAP, bus_element_type_method,
                                     { NULL, get_home_vap, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_IGNITEWIFI, bus_element_type_method,
+                                    { NULL, get_ignitewifi, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_string, true, 0, 0, 0, NULL } },
                                 { WIFI_BUS_HOTSPOT_UP, bus_element_type_event,
                                     { NULL, NULL, NULL, NULL, hotspot_event_handler, NULL}, slow_speed, ZERO_TABLE,

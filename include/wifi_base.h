@@ -662,6 +662,7 @@ typedef struct {
     int                     anqp_request_count;
     int                     anqp_response_count;
     bool                    force_apply;
+    float                   link_quality_threshold;
 } rdk_wifi_vap_info_t;
 
 typedef struct {

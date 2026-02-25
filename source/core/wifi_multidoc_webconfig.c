@@ -1965,7 +1965,7 @@ int register_multicomp_subdocs()
     return RETURN_OK;
 }
 
-static char *sub_docs[] = { "privatessid", "homessid", (char *)0 };
+static char *sub_docs[] = { "privatessid", "homessid", "ignitewifi", (char *)0 };
 int register_single_subdocs()
 {
 #ifdef ONEWIFI_RDKB_APP_SUPPORT
@@ -2088,6 +2088,130 @@ void webconf_process_home_vap(const char* enb)
         execDataPf->user_data = (void*) blob_buf;
         execDataPf->calcTimeout = webconf_timeout_handler;
         execDataPf->executeBlobRequest = wifi_home_vap_exec_handler;
+        execDataPf->rollbackFunc = webconf_rollback_handler;
+        execDataPf->freeResources = webconf_free_resources;
+        PushBlobRequest(execDataPf);
+        wifi_util_info_print(WIFI_CTRL, "%s:%d: PushBlobRequest Complete\n", __func__, __LINE__ );
+    }
+#endif
+}
+
+static pErr wifi_ignitewifi_exec_handler(void *blob)
+{
+    pErr execRetVal = NULL;
+    webconfig_subdoc_data_t *data = NULL;
+    unsigned int i, j;
+
+    if (blob == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s: Null blob\n", __func__);
+        return NULL;
+    }
+    wifi_util_info_print(WIFI_CTRL, "%s:%d\n", __func__, __LINE__);
+
+    data = (webconfig_subdoc_data_t *)malloc(sizeof(webconfig_subdoc_data_t));
+    if (data == NULL) {
+        wifi_util_error_print(WIFI_CTRL,
+            "%s:%d malloc failed to allocate webconfig_subdoc_data_t, size %d\n", __func__,
+            __LINE__, sizeof(webconfig_subdoc_data_t));
+        goto done;
+    }
+
+    execRetVal = create_execRetVal();
+    if (execRetVal == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s: malloc failure\n", __func__);
+        goto done;
+    }
+
+    webconfig_init_subdoc_data(data);
+
+    cJSON *root = cJSON_Parse((char *)blob);
+    if (root == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s: json parse failure\n", __func__);
+        execRetVal->ErrorCode = VALIDATION_FALIED;
+        goto done;
+    }
+
+    cJSON *config_array = cJSON_GetObjectItem(root, "IgniteWiFiConfig");
+    if (config_array == NULL || !cJSON_IsArray(config_array) || cJSON_GetArraySize(config_array) == 0) {
+        wifi_util_error_print(WIFI_CTRL, "%s: IgniteWiFiConfig not present or empty\n", __func__);
+        cJSON_Delete(root);
+        execRetVal->ErrorCode = VALIDATION_FALIED;
+        goto done;
+    }
+
+    cJSON *first_item = cJSON_GetArrayItem(config_array, 0);
+    cJSON *threshold_obj = cJSON_GetObjectItem(first_item, "LinkQualityThreshold");
+    if (threshold_obj == NULL || !cJSON_IsNumber(threshold_obj)) {
+        wifi_util_error_print(WIFI_CTRL, "%s: LinkQualityThreshold not present or invalid\n", __func__);
+        cJSON_Delete(root);
+        execRetVal->ErrorCode = VALIDATION_FALIED;
+        goto done;
+    }
+
+    float link_quality_threshold = (float)threshold_obj->valuedouble;
+    cJSON_Delete(root);
+
+    if (link_quality_threshold < 0.0 || link_quality_threshold > 1.0) {
+        wifi_util_error_print(WIFI_CTRL, "%s: LinkQualityThreshold %f out of range [0.0, 1.0]\n",
+            __func__, link_quality_threshold);
+        execRetVal->ErrorCode = VALIDATION_FALIED;
+        goto done;
+    }
+
+    wifi_util_info_print(WIFI_CTRL, "%s:%d: LinkQualityThreshold=%f\n", __func__, __LINE__, link_quality_threshold);
+
+    for (i = 0; i < data->u.decoded.num_radios; i++) {
+        for (j = 0; j < data->u.decoded.radios[i].vaps.vap_map.num_vaps; j++) {
+            wifi_vap_info_t *vap = &data->u.decoded.radios[i].vaps.vap_map.vap_array[j];
+            if (is_vap_mesh_sta(&data->u.decoded.hal_cap.wifi_prop, vap->vap_index)) {
+                data->u.decoded.radios[i].vaps.rdk_vap_array[j].link_quality_threshold = link_quality_threshold;
+                wifi_util_dbg_print(WIFI_CTRL, "%s:%d: Set link_quality_threshold=%f for vap=%s\n",
+                    __func__, __LINE__, link_quality_threshold, vap->vap_name);
+            }
+        }
+    }
+
+    if (push_blob_data(data, webconfig_subdoc_type_ignitewifi) != RETURN_OK) {
+        execRetVal->ErrorCode = WIFI_HAL_FAILURE;
+        strncpy(execRetVal->ErrorMsg, "push_blob_to_ctrl_queue failed", sizeof(execRetVal->ErrorMsg)-1);
+        wifi_util_error_print(WIFI_CTRL, "%s: failed to encode ignitewifi subdoc\n", __func__);
+        goto done;
+    }
+
+done:
+    if (data) {
+        free(data);
+    }
+    return execRetVal;
+}
+
+void webconf_process_ignitewifi(const char* enb)
+{
+#ifdef ONEWIFI_RDKB_APP_SUPPORT
+    char *blob_buf = unpackDecode(enb);
+    if(blob_buf == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s, Invalid Json\n", __func__ );
+        return;
+    }
+
+    uint32_t t_version = 0;
+    uint16_t tx_id = 0;
+    if(!webconf_ver_txn(blob_buf, &t_version, &tx_id)) {
+        free(blob_buf);
+        wifi_util_error_print(WIFI_CTRL, "%s, Invalid json, no version or transaction Id\n", __func__ );
+        return;
+    }
+
+    execData *execDataPf = (execData*) malloc (sizeof(execData));
+    if (execDataPf != NULL) {
+        memset(execDataPf, 0, sizeof(execData));
+        execDataPf->txid = tx_id;
+        execDataPf->version = t_version;
+        execDataPf->numOfEntries = 1;
+        strncpy(execDataPf->subdoc_name, "ignitewifi", sizeof(execDataPf->subdoc_name)-1);
+        execDataPf->user_data = (void*) blob_buf;
+        execDataPf->calcTimeout = webconf_timeout_handler;
+        execDataPf->executeBlobRequest = wifi_ignitewifi_exec_handler;
         execDataPf->rollbackFunc = webconf_rollback_handler;
         execDataPf->freeResources = webconf_free_resources;
         PushBlobRequest(execDataPf);
