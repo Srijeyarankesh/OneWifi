@@ -33,10 +33,6 @@ webconfig_subdoc_object_t   ignitewifi_objects[3] = {
     { webconfig_subdoc_object_type_ignitewifi_config, "IgniteWiFiConfig" },
 };
 
-/************************************************************************************
-  Function    : init_ignitewifi_subdoc
-  Description : Initialize ignitewifi subdoc with its expected JSON objects
- ************************************************************************************/
 webconfig_error_t init_ignitewifi_subdoc(webconfig_subdoc_t *doc)
 {
     doc->num_objects = sizeof(ignitewifi_objects)/sizeof(webconfig_subdoc_object_t);
@@ -45,19 +41,11 @@ webconfig_error_t init_ignitewifi_subdoc(webconfig_subdoc_t *doc)
     return webconfig_error_none;
 }
 
-/************************************************************************************
-  Function    : access_check_ignitewifi_subdoc
-  Description : Access check for ignitewifi subdoc - no special restrictions
- ************************************************************************************/
 webconfig_error_t access_check_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data)
 {
     return webconfig_error_none;
 }
 
-/************************************************************************************
-  Function    : translate_from_ignitewifi_subdoc
-  Description : Translate decoded ignitewifi data to external protocol (OVSDB/EasyMesh)
- ************************************************************************************/
 webconfig_error_t translate_from_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data)
 {
     if ((data->descriptor & webconfig_data_descriptor_translate_to_ovsdb) == webconfig_data_descriptor_translate_to_ovsdb) {
@@ -72,10 +60,6 @@ webconfig_error_t translate_from_ignitewifi_subdoc(webconfig_t *config, webconfi
     return webconfig_error_none;
 }
 
-/************************************************************************************
-  Function    : translate_to_ignitewifi_subdoc
-  Description : Translate external protocol data to ignitewifi decoded format
- ************************************************************************************/
 webconfig_error_t translate_to_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data)
 {
     if ((data->descriptor & webconfig_data_descriptor_translate_from_ovsdb) == webconfig_data_descriptor_translate_from_ovsdb) {
@@ -90,26 +74,6 @@ webconfig_error_t translate_to_ignitewifi_subdoc(webconfig_t *config, webconfig_
     return webconfig_error_none;
 }
 
-/************************************************************************************
-  Function    : encode_ignitewifi_subdoc
-  Description : Encode ignitewifi decoded data into JSON string
-
-  Produces JSON of the form:
-  {
-    "Version": "1.0",
-    "SubDocName": "ignitewifi",
-    "IgniteWiFiConfig": [
-      {
-        "VapName": "mesh_sta_2g",
-        "LinkQualityThreshold": 0.3
-      },
-      {
-        "VapName": "mesh_sta_5g",
-        "LinkQualityThreshold": 0.3
-      }
-    ]
-  }
- ************************************************************************************/
 webconfig_error_t encode_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data)
 {
     cJSON *json;
@@ -122,8 +86,6 @@ webconfig_error_t encode_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc
     char *str;
 
     params = &data->u.decoded;
-
-    /* Create root JSON object */
     json = cJSON_CreateObject();
     if (json == NULL) {
         wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: Failed to create JSON object\n", __func__, __LINE__);
@@ -131,15 +93,12 @@ webconfig_error_t encode_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc
     }
     data->u.encoded.json = json;
 
-    /* Add Version and SubDocName */
     cJSON_AddStringToObject(json, "Version", "1.0");
     cJSON_AddStringToObject(json, "SubDocName", "ignitewifi");
 
-    /* Create IgniteWiFiConfig array */
     obj_array = cJSON_CreateArray();
     cJSON_AddItemToObject(json, "IgniteWiFiConfig", obj_array);
 
-    /* Iterate all radios and VAPs, encode only mesh STA VAPs */
     for (i = 0; i < params->num_radios; i++) {
         radio = &params->radios[i];
         map = &radio->vaps.vap_map;
@@ -163,7 +122,6 @@ webconfig_error_t encode_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc
         }
     }
 
-    /* Serialize JSON to string */
     str = cJSON_Print(json);
     if (str == NULL) {
         wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: cJSON_Print failed\n", __func__, __LINE__);
@@ -188,23 +146,6 @@ webconfig_error_t encode_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc
     return webconfig_error_none;
 }
 
-/************************************************************************************
-  Function    : decode_ignitewifi_subdoc
-  Description : Decode ignitewifi JSON into internal decoded data structures
-
-  Expects JSON of the form:
-  {
-    "Version": "1.0",
-    "SubDocName": "ignitewifi",
-    "IgniteWiFiConfig": [
-      {
-        "LinkQualityThreshold": 0.3
-      }
-    ]
-  }
-
-  The LinkQualityThreshold value is applied to all mesh STA VAPs in the decoded data.
- ************************************************************************************/
 webconfig_error_t decode_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data)
 {
     webconfig_subdoc_t *doc;
@@ -224,20 +165,17 @@ webconfig_error_t decode_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc
     params = &data->u.decoded;
     doc = &config->subdocs[data->type];
 
-    /* Get list of mesh STA VAPs from HAL capabilities */
     num_mesh_sta = get_list_of_mesh_sta(&params->hal_cap.wifi_prop, MAX_NUM_RADIOS, vap_names);
 
     wifi_util_dbg_print(WIFI_WEBCONFIG, "%s:%d: Number of mesh STA VAPs = %u\n",
         __func__, __LINE__, num_mesh_sta);
 
-    /* Print the incoming JSON for debug */
     str = cJSON_Print(json);
     if (str != NULL) {
         wifi_util_dbg_print(WIFI_WEBCONFIG, "%s:%d: Incoming JSON:\n%s\n", __func__, __LINE__, str);
         cJSON_free(str);
     }
 
-    /* Validate that all required subdoc objects are present */
     for (i = 0; i < doc->num_objects; i++) {
         if ((cJSON_GetObjectItem(json, doc->objects[i].name)) == NULL) {
             wifi_util_error_print(WIFI_WEBCONFIG,
@@ -249,7 +187,6 @@ webconfig_error_t decode_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc
         }
     }
 
-    /* Get IgniteWiFiConfig array */
     obj_config = cJSON_GetObjectItem(json, "IgniteWiFiConfig");
     if (cJSON_IsArray(obj_config) == false) {
         wifi_util_error_print(WIFI_WEBCONFIG,
@@ -267,7 +204,6 @@ webconfig_error_t decode_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc
         return webconfig_error_invalid_subdoc;
     }
 
-    /* Extract LinkQualityThreshold from first element */
     obj = cJSON_GetArrayItem(obj_config, 0);
     if (obj == NULL) {
         wifi_util_error_print(WIFI_WEBCONFIG,
@@ -286,7 +222,6 @@ webconfig_error_t decode_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc
 
     link_quality_threshold = (float)threshold_obj->valuedouble;
 
-    /* Validate range */
     if (link_quality_threshold < 0.0 || link_quality_threshold > 1.0) {
         wifi_util_error_print(WIFI_WEBCONFIG,
             "%s:%d: LinkQualityThreshold value %f out of valid range [0.0, 1.0]\n",
@@ -299,7 +234,6 @@ webconfig_error_t decode_ignitewifi_subdoc(webconfig_t *config, webconfig_subdoc
         "%s:%d: Decoded LinkQualityThreshold=%f, applying to %u mesh STA VAPs\n",
         __func__, __LINE__, link_quality_threshold, num_mesh_sta);
 
-    /* Apply threshold to all mesh STA VAPs in the decoded data */
     for (i = 0; i < num_mesh_sta; i++) {
         radio_index = convert_vap_name_to_radio_array_index(&params->hal_cap.wifi_prop, vap_names[i]);
         vap_array_index = convert_vap_name_to_array_index(&params->hal_cap.wifi_prop, vap_names[i]);
