@@ -1650,27 +1650,6 @@ static int webconfig_memwraptool_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decod
     return RETURN_OK;
 }
 
-static int webconfig_hal_ignitewifi_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
-{
-    wifi_global_config_t *data_global_config = &data->config;
-    wifi_mgr_t *mgr = get_wifimgr_obj();
-
-    wifi_util_info_print(WIFI_CTRL, "%s:%d: Applying ignite_link_quality_threshold=%f\n",
-        __func__, __LINE__, data_global_config->global_parameters.ignite_link_quality_threshold);
-
-    pthread_mutex_lock(&mgr->data_cache_lock);
-    mgr->global_config.global_parameters.ignite_link_quality_threshold =
-        data_global_config->global_parameters.ignite_link_quality_threshold;
-    pthread_mutex_unlock(&mgr->data_cache_lock);
-
-    if (update_wifi_global_config(&data_global_config->global_parameters) == -1) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d ignitewifi config value is not updated in DB\n",
-            __func__, __LINE__);
-        return RETURN_ERR;
-    }
-
-    return RETURN_OK;
-}
 
 int webconfig_global_config_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
 {
@@ -2928,20 +2907,6 @@ webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc
                     __LINE__);
             } else {
                 ret = webconfig_memwraptool_apply(ctrl, &data->u.decoded);
-            }
-            break;
-
-        case webconfig_subdoc_type_ignitewifi:
-            wifi_util_dbg_print(WIFI_MGR, "%s:%d: ignitewifi webconfig subdoc\n", __func__,
-                __LINE__);
-            if (data->descriptor & webconfig_data_descriptor_encoded) {
-                if (ctrl->webconfig_state & ctrl_webconfig_state_ignitewifi_cfg_rsp_pending) {
-                    ctrl->webconfig_state &= ~ctrl_webconfig_state_ignitewifi_cfg_rsp_pending;
-                    ret = webconfig_bus_apply(ctrl, &data->u.encoded);
-                }
-            } else {
-                ctrl->webconfig_state |= ctrl_webconfig_state_ignitewifi_cfg_rsp_pending;
-                ret = webconfig_hal_ignitewifi_apply(ctrl, &data->u.decoded);
             }
             break;
 

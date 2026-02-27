@@ -1548,7 +1548,8 @@ bus_error_t set_ignite_link_quality_threshold(char *event_name, raw_data_t *p_da
     (void)user_data;
     char *pTmp = NULL;
     float threshold = 0.0;
-    wifi_mgr_t *mgr = (wifi_mgr_t *)get_wifimgr_obj();
+    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+    webconfig_subdoc_data_t *data = NULL;
 
     if (event_name == NULL) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d property name is not found\r\n", __FUNCTION__, __LINE__);
@@ -1571,15 +1572,26 @@ bus_error_t set_ignite_link_quality_threshold(char *event_name, raw_data_t *p_da
     wifi_util_info_print(WIFI_CTRL, "%s:%d Setting ignite_link_quality_threshold=%f\n",
         __func__, __LINE__, threshold);
 
-    pthread_mutex_lock(&mgr->data_cache_lock);
-    mgr->global_config.global_parameters.ignite_link_quality_threshold = threshold;
-    pthread_mutex_unlock(&mgr->data_cache_lock);
+    data = (webconfig_subdoc_data_t *)malloc(sizeof(webconfig_subdoc_data_t));
+    if (data == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d malloc failed\n", __func__, __LINE__);
+        return bus_error_out_of_resources;
+    }
 
-    if (update_wifi_global_config(&mgr->global_config.global_parameters) == -1) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to update ignite_link_quality_threshold in DB\n",
-            __func__, __LINE__);
+    webconfig_init_subdoc_data(data);
+    data->u.decoded.config.global_parameters.ignite_link_quality_threshold = threshold;
+
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_wifi_config) != webconfig_error_none) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to encode wifi_config subdoc\n", __func__, __LINE__);
+        free(data);
         return bus_error_general;
     }
+
+    push_event_to_ctrl_queue(data->u.encoded.raw, strlen(data->u.encoded.raw) + 1,
+        wifi_event_type_webconfig, wifi_event_webconfig_set_data_webconfig, NULL);
+
+    webconfig_data_free(data);
+    free(data);
 
     return bus_error_success;
 }
