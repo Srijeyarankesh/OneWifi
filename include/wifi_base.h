@@ -536,6 +536,7 @@ typedef struct {
     int mgt_frame_rate_limit;
     int mgt_frame_rate_limit_window_size;
     int mgt_frame_rate_limit_cooldown_time;
+    float ignite_link_quality_threshold;
 } __attribute__((packed)) wifi_global_param_t;
 
 typedef struct {

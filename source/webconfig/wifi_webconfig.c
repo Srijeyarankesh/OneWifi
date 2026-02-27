@@ -575,6 +575,18 @@ webconfig_error_t webconfig_init(webconfig_t *config)
     config->subdocs[webconfig_subdoc_type_memwraptool].translate_from_subdoc = translate_from_memwraptool_subdoc;
 #endif //ONEWIFI_MEMWRAPTOOL_APP_SUPPORT
 
+    config->subdocs[webconfig_subdoc_type_ignitewifi].type = webconfig_subdoc_type_ignitewifi;
+    strcpy(config->subdocs[webconfig_subdoc_type_ignitewifi].name, "ignitewifi");
+    config->subdocs[webconfig_subdoc_type_ignitewifi].major = 1;
+    config->subdocs[webconfig_subdoc_type_ignitewifi].minor = 1;
+    config->subdocs[webconfig_subdoc_type_ignitewifi].init_subdoc = init_ignitewifi_subdoc;
+    config->subdocs[webconfig_subdoc_type_ignitewifi].init_subdoc(&config->subdocs[webconfig_subdoc_type_ignitewifi]);
+    config->subdocs[webconfig_subdoc_type_ignitewifi].access_check_subdoc = access_check_ignitewifi_subdoc;
+    config->subdocs[webconfig_subdoc_type_ignitewifi].encode_subdoc = encode_ignitewifi_subdoc;
+    config->subdocs[webconfig_subdoc_type_ignitewifi].decode_subdoc = decode_ignitewifi_subdoc;
+    config->subdocs[webconfig_subdoc_type_ignitewifi].translate_to_subdoc = translate_to_ignitewifi_subdoc;
+    config->subdocs[webconfig_subdoc_type_ignitewifi].translate_from_subdoc = translate_from_ignitewifi_subdoc;
+
 #ifdef ONEWIFI_CAC_APP_SUPPORT
     config->subdocs[webconfig_subdoc_type_cac].type = webconfig_subdoc_type_cac;
     strcpy(config->subdocs[webconfig_subdoc_type_cac].name, "connection_control");
