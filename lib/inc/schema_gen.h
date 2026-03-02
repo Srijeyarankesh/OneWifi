@@ -1645,7 +1645,6 @@
         PJS_OVS_INT(mgt_frame_rate_limit) \
         PJS_OVS_INT(mgt_frame_rate_limit_window_size) \
         PJS_OVS_INT(mgt_frame_rate_limit_cooldown_time) \
-        PJS_OVS_STRING(ignite_link_quality_threshold, 64 + 1) \
     )
 
 #define PJS_SCHEMA_Wifi_Preassoc_Control_Config \
