@@ -153,7 +153,7 @@ typedef enum {
     ctrl_webconfig_state_max = 0x10000000
 } wifi_ctrl_webconfig_state_t;
 
-#define CTRL_WEBCONFIG_STATE_MASK 0xffffffff
+#define CTRL_WEBCONFIG_STATE_MASK 0xfffffff
 
 typedef struct {
         char mac_addr[MAC_STR_LEN];
