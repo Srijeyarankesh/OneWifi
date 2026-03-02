@@ -154,7 +154,6 @@
         PJS_OVS_BOOL(mdu_enabled)\
         PJS_OVS_INT(speed_tier)\
         PJS_OVS_STRING(repurposed_bridge_name, 8 + 1)\
-        PJS_OVS_STRING(link_quality_threshold, 64 + 1)\
     )
 
 #define PJS_SCHEMA_Wifi_Interworking_Config \
@@ -2096,8 +2095,7 @@
     COLUMN(interop_ctrl)\
     COLUMN(mdu_enabled)\
     COLUMN(speed_tier)\
-    COLUMN(repurposed_bridge_name) \
-    COLUMN(link_quality_threshold)
+    COLUMN(repurposed_bridge_name)
 
 #define SCHEMA__Wifi_Interworking_Config "Wifi_Interworking_Config"
 #define SCHEMA_COLUMN__Wifi_Interworking_Config(COLUMN) \
@@ -3468,7 +3466,6 @@
 #define SCHEMA__Wifi_VAP_Config__mdu_enabled "mdu_enabled"
 #define SCHEMA__Wifi_VAP_Config__speed_tier "speed_tier"
 #define SCHEMA__Wifi_VAP_Config__repurposed_bridge_name "repurposed_bridge_name"
-#define SCHEMA__Wifi_VAP_Config__link_quality_threshold "link_quality_threshold"
 
 #define SCHEMA__Wifi_Interworking_Config__enable "enable"
 #define SCHEMA__Wifi_Interworking_Config__vap_name "vap_name"

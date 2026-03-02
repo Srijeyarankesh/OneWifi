@@ -990,11 +990,6 @@ void callback_Wifi_VAP_Config(ovsdb_update_monitor_t *mon,
             l_sta_param_cfg->scan_params.period = new_rec->period;
             l_sta_param_cfg->scan_params.channel.channel = new_rec->channel;
             l_sta_param_cfg->scan_params.channel.band = new_rec->freq_band;
-            if (strlen(new_rec->link_quality_threshold) != 0) {
-                l_vap_param_cfg->link_quality_threshold = strtod(new_rec->link_quality_threshold, NULL);
-            } else {
-                l_vap_param_cfg->link_quality_threshold = 0.0;
-            }
             pthread_mutex_unlock(&g_wifidb->data_cache_lock);
         } else {
             l_bss_param_cfg = Get_wifi_object_bss_parameter(vap_index);
@@ -2783,8 +2778,7 @@ int wifidb_update_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
         cfg.channel = config->u.sta_info.scan_params.channel.channel;
         cfg.freq_band = config->u.sta_info.scan_params.channel.band;
         strncpy(cfg.mfp_config,"Disabled",sizeof(cfg.mfp_config)-1);
-        snprintf(cfg.link_quality_threshold, sizeof(cfg.link_quality_threshold), "%lf", config->link_quality_threshold);
-        wifi_util_dbg_print(WIFI_DB,"%s:%d:VAP Config update data cfg.radio_name=%s cfg.vap_name=%s cfg.ssid=%s cfg.enabled=%d cfg.link_quality_threshold=%s\r\n", __func__, __LINE__, cfg.radio_name,cfg.vap_name,cfg.ssid,cfg.enabled,cfg.link_quality_threshold);
+        wifi_util_dbg_print(WIFI_DB,"%s:%d:VAP Config update data cfg.radio_name=%s cfg.vap_name=%s cfg.ssid=%s cfg.enabled=%d\r\n", __func__, __LINE__, cfg.radio_name,cfg.vap_name,cfg.ssid,cfg.enabled);
     } else {
         strncpy(cfg.ssid, config->u.bss_info.ssid, (sizeof(cfg.ssid)-1));
         cfg.enabled = config->u.bss_info.enabled;
@@ -6228,11 +6222,6 @@ int wifidb_get_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
             config->u.sta_info.scan_params.period = pcfg->period;
             config->u.sta_info.scan_params.channel.channel = pcfg->channel;
             config->u.sta_info.scan_params.channel.band = pcfg->freq_band;
-            if (strlen(pcfg->link_quality_threshold) != 0) {
-                config->link_quality_threshold = strtod(pcfg->link_quality_threshold, NULL);
-            } else {
-                config->link_quality_threshold = 0.0;
-            }
         } else {
             if(strlen(pcfg->ssid) != 0) {
                 strncpy(config->u.bss_info.ssid,pcfg->ssid,(sizeof(config->u.bss_info.ssid)-1));
