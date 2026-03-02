@@ -990,6 +990,11 @@ void callback_Wifi_VAP_Config(ovsdb_update_monitor_t *mon,
             l_sta_param_cfg->scan_params.period = new_rec->period;
             l_sta_param_cfg->scan_params.channel.channel = new_rec->channel;
             l_sta_param_cfg->scan_params.channel.band = new_rec->freq_band;
+            if (strlen(new_rec->link_quality_threshold) != 0) {
+                l_vap_param_cfg->link_quality_threshold = strtod(new_rec->link_quality_threshold, NULL);
+            } else {
+                l_vap_param_cfg->link_quality_threshold = 0.0;
+            }
             pthread_mutex_unlock(&g_wifidb->data_cache_lock);
         } else {
             l_bss_param_cfg = Get_wifi_object_bss_parameter(vap_index);
@@ -1309,8 +1314,12 @@ void callback_Wifi_Global_Config(ovsdb_update_monitor_t *mon,
             new_rec->mgt_frame_rate_limit_window_size;
         g_wifidb->global_config.global_parameters.mgt_frame_rate_limit_cooldown_time =
             new_rec->mgt_frame_rate_limit_cooldown_time;
-        g_wifidb->global_config.global_parameters.ignite_link_quality_threshold =
-            (float)new_rec->ignite_link_quality_threshold;
+        if (strlen(new_rec->ignite_link_quality_threshold) != 0) {
+            g_wifidb->global_config.global_parameters.ignite_link_quality_threshold =
+                strtod(new_rec->ignite_link_quality_threshold, NULL);
+        } else {
+            g_wifidb->global_config.global_parameters.ignite_link_quality_threshold = 0.0;
+        }
 
         wifi_util_dbg_print(WIFI_DB,
             "%s:%d notify_wifi_changes %d prefer_private %d prefer_private_configure %d "
@@ -1328,7 +1337,7 @@ void callback_Wifi_Global_Config(ovsdb_update_monitor_t *mon,
             "normalized_rssi_list %s snr_list %s cli_stat_list %s txrx_rate_list %s "
             "mgt_frame_rate_limit_enable %d mgt_frame_rate_limit %d mgt_frame_window_size %d"
             "mgt_frame_cooldown_time %d rss_check_interval %d rss_threshold %d rss_maxlimit %d "
-            "heapwalk_duration %d heapwalk_interval %d ignite_link_quality_threshold %f\n",
+            "heapwalk_duration %d heapwalk_interval %d ignite_link_quality_threshold %s\n",
             __func__, __LINE__, new_rec->notify_wifi_changes, new_rec->prefer_private,
             new_rec->prefer_private_configure, new_rec->factory_reset,
             new_rec->tx_overflow_selfheal, new_rec->inst_wifi_client_enabled,
@@ -2774,7 +2783,8 @@ int wifidb_update_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
         cfg.channel = config->u.sta_info.scan_params.channel.channel;
         cfg.freq_band = config->u.sta_info.scan_params.channel.band;
         strncpy(cfg.mfp_config,"Disabled",sizeof(cfg.mfp_config)-1);
-        wifi_util_dbg_print(WIFI_DB,"%s:%d:VAP Config update data cfg.radio_name=%s cfg.vap_name=%s cfg.ssid=%s cfg.enabled=%d\r\n", __func__, __LINE__, cfg.radio_name,cfg.vap_name,cfg.ssid,cfg.enabled);
+        snprintf(cfg.link_quality_threshold, sizeof(cfg.link_quality_threshold), "%lf", config->link_quality_threshold);
+        wifi_util_dbg_print(WIFI_DB,"%s:%d:VAP Config update data cfg.radio_name=%s cfg.vap_name=%s cfg.ssid=%s cfg.enabled=%d cfg.link_quality_threshold=%s\r\n", __func__, __LINE__, cfg.radio_name,cfg.vap_name,cfg.ssid,cfg.enabled,cfg.link_quality_threshold);
     } else {
         strncpy(cfg.ssid, config->u.bss_info.ssid, (sizeof(cfg.ssid)-1));
         cfg.enabled = config->u.bss_info.enabled;
@@ -3234,7 +3244,7 @@ int wifidb_update_wifi_global_config(wifi_global_param_t *config)
     cfg.mgt_frame_rate_limit = config->mgt_frame_rate_limit;
     cfg.mgt_frame_rate_limit_window_size = config->mgt_frame_rate_limit_window_size;
     cfg.mgt_frame_rate_limit_cooldown_time = config->mgt_frame_rate_limit_cooldown_time;
-    cfg.ignite_link_quality_threshold = (double)config->ignite_link_quality_threshold;
+    snprintf(cfg.ignite_link_quality_threshold, sizeof(cfg.ignite_link_quality_threshold), "%lf", config->ignite_link_quality_threshold);
 
 
 #if ONEWIFI_DML_SUPPORT
@@ -3388,7 +3398,11 @@ int wifidb_get_wifi_global_config(wifi_global_param_t *config)
         config->mgt_frame_rate_limit = pcfg->mgt_frame_rate_limit;
         config->mgt_frame_rate_limit_window_size = pcfg->mgt_frame_rate_limit_window_size;
         config->mgt_frame_rate_limit_cooldown_time = pcfg->mgt_frame_rate_limit_cooldown_time;
-        config->ignite_link_quality_threshold = (float)pcfg->ignite_link_quality_threshold;
+        if (strlen(pcfg->ignite_link_quality_threshold) != 0) {
+            config->ignite_link_quality_threshold = strtod(pcfg->ignite_link_quality_threshold, NULL);
+        } else {
+            config->ignite_link_quality_threshold = 0.0;
+        }
 
         wifi_util_dbg_print(WIFI_DB,
             "%s:%d notify_wifi_changes %d prefer_private %d prefer_private_configure %d "
@@ -6214,6 +6228,11 @@ int wifidb_get_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
             config->u.sta_info.scan_params.period = pcfg->period;
             config->u.sta_info.scan_params.channel.channel = pcfg->channel;
             config->u.sta_info.scan_params.channel.band = pcfg->freq_band;
+            if (strlen(pcfg->link_quality_threshold) != 0) {
+                config->link_quality_threshold = strtod(pcfg->link_quality_threshold, NULL);
+            } else {
+                config->link_quality_threshold = 0.0;
+            }
         } else {
             if(strlen(pcfg->ssid) != 0) {
                 strncpy(config->u.bss_info.ssid,pcfg->ssid,(sizeof(config->u.bss_info.ssid)-1));

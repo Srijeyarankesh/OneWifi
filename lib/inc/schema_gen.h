@@ -154,6 +154,7 @@
         PJS_OVS_BOOL(mdu_enabled)\
         PJS_OVS_INT(speed_tier)\
         PJS_OVS_STRING(repurposed_bridge_name, 8 + 1)\
+        PJS_OVS_STRING(link_quality_threshold, 64 + 1)\
     )
 
 #define PJS_SCHEMA_Wifi_Interworking_Config \
@@ -1644,7 +1645,7 @@
         PJS_OVS_INT(mgt_frame_rate_limit) \
         PJS_OVS_INT(mgt_frame_rate_limit_window_size) \
         PJS_OVS_INT(mgt_frame_rate_limit_cooldown_time) \
-        PJS_OVS_REAL(ignite_link_quality_threshold) \
+        PJS_OVS_STRING(ignite_link_quality_threshold, 64 + 1) \
     )
 
 #define PJS_SCHEMA_Wifi_Preassoc_Control_Config \
@@ -2096,7 +2097,8 @@
     COLUMN(interop_ctrl)\
     COLUMN(mdu_enabled)\
     COLUMN(speed_tier)\
-    COLUMN(repurposed_bridge_name)
+    COLUMN(repurposed_bridge_name) \
+    COLUMN(link_quality_threshold)
 
 #define SCHEMA__Wifi_Interworking_Config "Wifi_Interworking_Config"
 #define SCHEMA_COLUMN__Wifi_Interworking_Config(COLUMN) \
@@ -3323,6 +3325,7 @@
     COLUMN(mgt_frame_rate_limit) \
     COLUMN(mgt_frame_rate_limit_window_size) \
     COLUMN(mgt_frame_rate_limit_cooldown_time) \
+    COLUMN(ignite_link_quality_threshold)
 
 #define SCHEMA__Wifi_Preassoc_Control_Config "Wifi_Preassoc_Control_Config"
 #define SCHEMA_COLUMN__Wifi_Preassoc_Control_Config(COLUMN) \
@@ -3466,6 +3469,7 @@
 #define SCHEMA__Wifi_VAP_Config__mdu_enabled "mdu_enabled"
 #define SCHEMA__Wifi_VAP_Config__speed_tier "speed_tier"
 #define SCHEMA__Wifi_VAP_Config__repurposed_bridge_name "repurposed_bridge_name"
+#define SCHEMA__Wifi_VAP_Config__link_quality_threshold "link_quality_threshold"
 
 #define SCHEMA__Wifi_Interworking_Config__enable "enable"
 #define SCHEMA__Wifi_Interworking_Config__vap_name "vap_name"

@@ -2613,7 +2613,7 @@ webconfig_error_t decode_wifi_global_config(const cJSON *global_cfg, wifi_global
     // IgniteLinkQualityThreshold (optional - may not be present in older subdocs)
     param = cJSON_GetObjectItem(global_cfg, "IgniteLinkQualityThreshold");
     if (param != NULL && cJSON_IsNumber(param)) {
-        global_info->ignite_link_quality_threshold = (float)param->valuedouble;
+        global_info->ignite_link_quality_threshold = param->valuedouble;
     }
 
     wifi_util_dbg_print(WIFI_WEBCONFIG,"wifi global Parameters decode successfully\n");

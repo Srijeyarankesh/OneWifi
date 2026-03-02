@@ -27,6 +27,7 @@
 #include "wifi_monitor.h"
 #include "wifi_webconfig.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <limits.h>
@@ -1528,7 +1529,7 @@ bus_error_t get_ignite_link_quality_threshold(char *event_name, raw_data_t *p_da
         return bus_error_invalid_input;
     }
 
-    snprintf(str, sizeof(str), "%f", mgr->global_config.global_parameters.ignite_link_quality_threshold);
+    snprintf(str, sizeof(str), "%lf", mgr->global_config.global_parameters.ignite_link_quality_threshold);
 
     str_size = strlen(str) + 1;
     p_data->data_type = bus_data_type_string;
@@ -1547,7 +1548,7 @@ bus_error_t set_ignite_link_quality_threshold(char *event_name, raw_data_t *p_da
 {
     (void)user_data;
     char *pTmp = NULL;
-    float threshold = 0.0;
+    double threshold = 0.0;
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     webconfig_subdoc_data_t *data = NULL;
 
@@ -1562,7 +1563,7 @@ bus_error_t set_ignite_link_quality_threshold(char *event_name, raw_data_t *p_da
         return bus_error_invalid_input;
     }
 
-    threshold = (float)atof(pTmp);
+    threshold = strtod(pTmp, NULL);
     if (threshold < 0.0 || threshold > 1.0) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d LinkQualityThreshold %f out of range [0.0, 1.0]\n",
             __func__, __LINE__, threshold);

@@ -2105,7 +2105,7 @@ static pErr wifi_ignitewifi_exec_handler(void *blob)
     cJSON *config_array = NULL;
     cJSON *first_item = NULL;
     cJSON *threshold_obj = NULL;
-    float link_quality_threshold = 0.0;
+    double link_quality_threshold = 0.0;
 
     if (blob == NULL) {
         wifi_util_error_print(WIFI_CTRL, "%s: Null blob\n", __func__);
@@ -2141,7 +2141,7 @@ static pErr wifi_ignitewifi_exec_handler(void *blob)
         goto done;
     }
 
-    link_quality_threshold = (float)threshold_obj->valuedouble;
+    link_quality_threshold = threshold_obj->valuedouble;
     if (link_quality_threshold < 0.0 || link_quality_threshold > 1.0) {
         wifi_util_error_print(WIFI_CTRL, "%s: LinkQualityThreshold %f out of range [0.0, 1.0]\n",
             __func__, link_quality_threshold);
