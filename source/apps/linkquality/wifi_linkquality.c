@@ -123,7 +123,7 @@ void publish_station_score(const char *input_str, double score, double threshold
     }
 
     get_formatted_time(tmp);
-    snprintf(buff, MAX_BUFF_LEN, "%s IGNITE_CONNECTION_SCORE:%f", tmp, score);
+    snprintf(buff, MAX_BUFF_LEN, "%s IGNITE_CONNECTION_SCORE:%f\n", tmp, score);
     wifi_util_error_print(WIFI_CTRL, "%s:%d: Buff updated as %s\n", __func__, __LINE__, buff);
     write_to_file(wifi_health_log, buff);
     return;
