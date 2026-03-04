@@ -21,6 +21,7 @@
 #include <stdbool.h>
 #include "stdlib.h"
 #include <sys/time.h>
+#include "scheduler.h"
 #include "wifi_hal.h"
 #include "wifi_ctrl.h"
 #include "wifi_mgr.h"
@@ -87,45 +88,69 @@ void publish_qmgr_subdoc(const report_batch_t* report)
 
 #define MAX_STR_LEN     128
 #define MAX_BUFF_LEN    1048
+#define IGNITE_SCORE_LOG_INTERVAL_MS 900000 // 15 mins
+
+static double last_ignite_score = 0.0;
+static int score_log_timer_id = 0;
+
+static int ignite_score_log_timer(void *args)
+{
+    char tmp[128] = {0};
+    char buff[MAX_BUFF_LEN] = {0};
+
+    get_formatted_time(tmp);
+    snprintf(buff, sizeof(buff), "%s IGNITE_CONNECTION_SCORE:%f", tmp, last_ignite_score);
+    wifi_util_info_print(WIFI_APPS, "%s:%d: %s\n", __func__, __LINE__, buff);
+    write_to_file("/rdklogs/logs/wifihealth.txt", buff);
+    return RETURN_OK;
+}
 
 void publish_station_score(const char *input_str, double score, double threshold)
 {
-    char buff[MAX_BUFF_LEN] = {'\0'};
     char str[MAX_STR_LEN] = {'\0'};
-    char tmp[MAX_STR_LEN] = {'\0'};
-    char *wifi_health_log = "/rdklogs/logs/wifihealth.txt";
+    static int last_service_state = -1;
+    int current_state = -1;
     bus_error_t status;
     raw_data_t rdata;
     wifi_app_t *wifi_app = NULL;
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     wifi_util_info_print(WIFI_APPS, "%s:%d str =%s score =%f threshold =%f\n", __func__, __LINE__, input_str, score, threshold);
-    memset(&rdata, 0, sizeof(raw_data_t));
-    rdata.data_type = bus_data_type_string;
+
+    last_ignite_score = score;
+
+    if (threshold != 0.0 && score_log_timer_id == 0) {
+        scheduler_add_timer_task(ctrl->sched, FALSE, &score_log_timer_id,
+            ignite_score_log_timer, NULL, IGNITE_SCORE_LOG_INTERVAL_MS, 0, 0);
+        wifi_util_info_print(WIFI_APPS, "%s:%d: Started ignite score log timer (15 min)\n", __func__, __LINE__);
+    }
+
     if (score < threshold) {
-	snprintf(str, MAX_STR_LEN, "Non-Serviceable");
-	rdata.raw_data.bytes = (void *)str;
-	rdata.raw_data_len = (strlen(str) + 1);
+        current_state = 0;
+        snprintf(str, MAX_STR_LEN, "Non-Serviceable");
     } else if (score > threshold) {
-	snprintf(str, MAX_STR_LEN, "Serviceable");
-	rdata.raw_data.bytes = (void *)str;
-	rdata.raw_data_len = (strlen(str) + 1);
+        current_state = 1;
+        snprintf(str, MAX_STR_LEN, "Serviceable");
     }
 
-    wifi_util_error_print(WIFI_CTRL, "%s:%d: str updated as %s\n", __func__, __LINE__, str);
-    wifi_app = get_app_by_inst(&ctrl->apps_mgr, wifi_app_inst_link_quality);
-    if (wifi_app == NULL) {
-        wifi_util_error_print(WIFI_APPS, "%s:%d NULL Pointer \n", __func__, __LINE__);
-        return;
-    }
-    status = get_bus_descriptor()->bus_event_publish_fn(&wifi_app->ctrl->handle, WIFI_IGNITE_STATUS, &rdata);
-    if (status != bus_error_success) {
-	wifi_util_error_print(WIFI_CTRL, "%s:%d: bus: bus_event_publish_fn Event failed %d\n",  __func__, __LINE__, status);    
+    if (current_state != -1 && current_state != last_service_state) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: ignite status toggled to %s\n", __func__, __LINE__, str);
+        memset(&rdata, 0, sizeof(raw_data_t));
+        rdata.data_type = bus_data_type_string;
+        rdata.raw_data.bytes = (void *)str;
+        rdata.raw_data_len = (strlen(str) + 1);
+
+        wifi_app = get_app_by_inst(&ctrl->apps_mgr, wifi_app_inst_link_quality);
+        if (wifi_app == NULL) {
+            wifi_util_error_print(WIFI_APPS, "%s:%d NULL Pointer \n", __func__, __LINE__);
+            return;
+        }
+        status = get_bus_descriptor()->bus_event_publish_fn(&wifi_app->ctrl->handle, WIFI_IGNITE_STATUS, &rdata);
+        if (status != bus_error_success) {
+            wifi_util_error_print(WIFI_CTRL, "%s:%d: bus: bus_event_publish_fn Event failed %d\n", __func__, __LINE__, status);
+        }
+        last_service_state = current_state;
     }
 
-    get_formatted_time(tmp);
-    snprintf(buff, MAX_BUFF_LEN, "%s IGNITE_CONNECTION_SCORE:%f", tmp, score);
-    wifi_util_error_print(WIFI_CTRL, "%s:%d: Buff updated as %s\n", __func__, __LINE__, buff);
-    write_to_file(wifi_health_log, buff);
     return;
 }
 
@@ -160,6 +185,13 @@ int link_quality_unregister_station(wifi_app_t *apps, wifi_event_t *arg)
     if ( ctrl->rf_status_down) {
         unregister_station_mac(str);
     }
+
+    if (score_log_timer_id != 0) {
+        scheduler_cancel_timer_task(ctrl->sched, score_log_timer_id);
+        score_log_timer_id = 0;
+        wifi_util_info_print(WIFI_APPS, "%s:%d: Cancelled ignite score log timer\n", __func__, __LINE__);
+    }
+
     return RETURN_OK;
 }
 
@@ -182,6 +214,14 @@ int link_quality_event_exec_stop(wifi_app_t *apps, void *arg)
 {
     wifi_util_info_print(WIFI_APPS, "%s:%d\n", __func__, __LINE__);
     stop_link_metrics();
+
+    if (score_log_timer_id != 0) {
+        wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+        scheduler_cancel_timer_task(ctrl->sched, score_log_timer_id);
+        score_log_timer_id = 0;
+        wifi_util_info_print(WIFI_APPS, "%s:%d: Cancelled ignite score log timer\n", __func__, __LINE__);
+    }
+
     return RETURN_OK;
 }
 
