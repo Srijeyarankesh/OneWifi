@@ -39,6 +39,7 @@
 static double last_ignite_score = 0.0;
 static double last_ignite_threshold = 0.0;
 static int score_log_timer_id = 0;
+static int last_service_state = -1;
 static char *wifi_health_log = "/rdklogs/logs/wifihealth.txt";
 
 /* Register callback BEFORE starting qmgr */
@@ -110,7 +111,6 @@ static int ignite_score_log_timer(void *args)
 void publish_station_score(const char *input_str, double score, double threshold)
 {
     char str[MAX_STR_LEN] = {'\0'};
-    static int last_service_state = -1;
     int current_state = -1;
     bus_error_t status;
     raw_data_t rdata;
@@ -153,6 +153,14 @@ void publish_station_score(const char *input_str, double score, double threshold
         } //Remove the else if block as this is just a check
         else if(status == bus_error_success){
             wifi_util_info_print(WIFI_APPS, "%s:%d: bus: bus_event_publish_fn Event success %s\n", __func__, __LINE__, str);
+        }
+        if (last_service_state == -1) {
+            char tmp[128] = {0};
+            char buff[MAX_BUFF_LEN] = {0};
+            get_formatted_time(tmp);
+            snprintf(buff, sizeof(buff), "%s WIFI_IGNITE_LINKQUALITY:%f %f\n", tmp, last_ignite_score, last_ignite_threshold);
+            wifi_util_info_print(WIFI_APPS, "%s:%d: First score after connection: %s\n", __func__, __LINE__, buff);
+            write_to_file(wifi_health_log, buff);
         }
         last_service_state = current_state;
     }
@@ -197,6 +205,7 @@ int link_quality_unregister_station(wifi_app_t *apps, wifi_event_t *arg)
         score_log_timer_id = 0;
         wifi_util_info_print(WIFI_APPS, "%s:%d: Cancelled ignite score log timer\n", __func__, __LINE__);
     }
+    last_service_state = -1;
 
     return RETURN_OK;
 }
@@ -227,6 +236,7 @@ int link_quality_event_exec_stop(wifi_app_t *apps, void *arg)
         score_log_timer_id = 0;
         wifi_util_info_print(WIFI_APPS, "%s:%d: Cancelled ignite score log timer\n", __func__, __LINE__);
     }
+    last_service_state = -1;
 
     return RETURN_OK;
 }
