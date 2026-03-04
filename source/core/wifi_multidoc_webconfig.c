@@ -2135,13 +2135,19 @@ static pErr wifi_ignitewifi_exec_handler(void *blob)
 
     first_item = cJSON_GetArrayItem(config_array, 0);
     threshold_obj = cJSON_GetObjectItem(first_item, "LinkQualityThreshold");
-    if (threshold_obj == NULL || !cJSON_IsNumber(threshold_obj)) {
-        wifi_util_error_print(WIFI_CTRL, "%s: LinkQualityThreshold not present or invalid\n", __func__);
+    if (threshold_obj == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s: LinkQualityThreshold not present\n", __func__);
         execRetVal->ErrorCode = VALIDATION_FALIED;
         goto done;
     }
 
-    link_quality_threshold = threshold_obj->valuedouble;
+    if (cJSON_IsString(threshold_obj) && threshold_obj->valuestring != NULL) {
+        link_quality_threshold = strtod(threshold_obj->valuestring, NULL);
+    } else {
+        wifi_util_error_print(WIFI_CTRL, "%s: LinkQualityThreshold invalid type\n", __func__);
+        execRetVal->ErrorCode = VALIDATION_FALIED;
+        goto done;
+    }
     if (link_quality_threshold < 0.0 || link_quality_threshold > 1.0) {
         wifi_util_error_print(WIFI_CTRL, "%s: LinkQualityThreshold %f out of range [0.0, 1.0]\n",
             __func__, link_quality_threshold);
