@@ -234,8 +234,8 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
     }
 
     if (ctrl->rf_status_down && isVapSTAMesh(args->vap_index)) {
+        rf_down_mesh_sta = true;
         wifi_util_dbg_print(WIFI_MON, "[%s %d] link-quality-rfc : %d Ignite-mesh-sta-config: %d \n", __func__, __LINE__, link_quality_measurement, rf_down_mesh_sta);
-        rf_down_mesh_sta = true; 
     }
     
     ret = wifi_getApAssociatedDeviceDiagnosticResult3(args->vap_index, &dev_array, &num_devs);
