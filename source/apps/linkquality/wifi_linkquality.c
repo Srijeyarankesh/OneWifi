@@ -32,6 +32,15 @@
 #include "wifi_hal_rdk_framework.h"
 #include "wifi_monitor.h"
 
+#define MAX_STR_LEN     128
+#define MAX_BUFF_LEN    1048
+#define IGNITE_SCORE_LOG_INTERVAL_MS 900000 // 15 mins
+
+static double last_ignite_score = 0.0;
+static double last_ignite_threshold = 0.0;
+static int score_log_timer_id = 0;
+static char *wifi_health_log = "/rdklogs/logs/wifihealth.txt";
+
 /* Register callback BEFORE starting qmgr */
 void publish_qmgr_subdoc(const report_batch_t* report)
 {
@@ -86,22 +95,15 @@ void publish_qmgr_subdoc(const report_batch_t* report)
     return;
 }
 
-#define MAX_STR_LEN     128
-#define MAX_BUFF_LEN    1048
-#define IGNITE_SCORE_LOG_INTERVAL_MS 900000 // 15 mins
-
-static double last_ignite_score = 0.0;
-static int score_log_timer_id = 0;
-
 static int ignite_score_log_timer(void *args)
 {
     char tmp[128] = {0};
     char buff[MAX_BUFF_LEN] = {0};
 
     get_formatted_time(tmp);
-    snprintf(buff, sizeof(buff), "%s IGNITE_CONNECTION_SCORE:%f", tmp, last_ignite_score);
+    snprintf(buff, sizeof(buff), "%s WIFI_IGNITE_LINKQUALITY:%f %f", tmp, last_ignite_score, last_ignite_threshold);
     wifi_util_info_print(WIFI_APPS, "%s:%d: %s\n", __func__, __LINE__, buff);
-    write_to_file("/rdklogs/logs/wifihealth.txt", buff);
+    write_to_file(wifi_health_log, buff);
     return RETURN_OK;
 }
 
@@ -117,6 +119,7 @@ void publish_station_score(const char *input_str, double score, double threshold
     wifi_util_info_print(WIFI_APPS, "%s:%d str =%s score =%f threshold =%f\n", __func__, __LINE__, input_str, score, threshold);
 
     last_ignite_score = score;
+    last_ignite_threshold = threshold;
 
     if (threshold != 0.0 && score_log_timer_id == 0) {
         scheduler_add_timer_task(ctrl->sched, FALSE, &score_log_timer_id,
