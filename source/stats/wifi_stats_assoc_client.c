@@ -167,6 +167,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
     struct timespec tv_now, t_diff, t_tmp;
     unsigned int disconnected_time;
     bool link_quality_measurement = false;
+    bool rf_down_mesh_sta = false;
     linkquality_data_t *link_data = NULL;
     wifi_rfc_dml_parameters_t *rfc_param = NULL;
     
@@ -232,6 +233,11 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
         link_quality_measurement = true;
     }
 
+    if (ctrl->rf_status_down && isVapSTAMesh(args->vap_index)) {
+        wifi_util_dbg_print(WIFI_MON, "[%s %d] link-quality-rfc : %d Ignite-mesh-sta-config: %d \n", __func__, __LINE__, link_quality_measurement, rf_down_mesh_sta);
+        rf_down_mesh_sta = true; 
+    }
+    
     ret = wifi_getApAssociatedDeviceDiagnosticResult3(args->vap_index, &dev_array, &num_devs);
     if (ret != RETURN_OK) {
         wifi_util_error_print(WIFI_MON,
@@ -243,9 +249,8 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
         }
         return RETURN_ERR;
     }
-     wifi_util_dbg_print(WIFI_MON, "[%s %d] link-quality-rfc : %d Ignite-rfc: %d vap-idx : %d isvapstamesh : %d\n", __func__, __LINE__, link_quality_measurement, ctrl->rf_status_down, args->vap_index, (isVapSTAMesh(args->vap_index)));
 
-    if (num_devs && ((link_quality_measurement) || ((ctrl->rf_status_down == true) && (isVapSTAMesh(args->vap_index))))) {
+    if (num_devs && ((link_quality_measurement) || (rf_down_mesh_sta))) {
         link_data =(linkquality_data_t *) malloc (num_devs * sizeof(linkquality_data_t));
     }
     if (link_data == NULL) {
@@ -284,9 +289,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
             dev_array[i].cli_MaxUplinkRate, dev_array[i].cli_activeNumSpatialStreams,
             dev_array[i].cli_TxFrames, dev_array[i].cli_RxRetries, dev_array[i].cli_RxErrors);
      
-        wifi_util_dbg_print(WIFI_MON, "[%s %d] link-quality-rfc : %d Ignite-rfc: %d vap-idx : %d isvapstamesh : %d\n", __func__, __LINE__, link_quality_measurement, ctrl->rf_status_down, args->vap_index, (isVapSTAMesh(args->vap_index)));
-
-            if (link_data && ((link_quality_measurement) || ((ctrl->rf_status_down == true) && (isVapSTAMesh(args->vap_index))))) {
+            if (link_data && ((link_quality_measurement) || (rf_down_mesh_sta))) {
                 memset(&link_data[i], 0, sizeof(linkquality_data_t));
                 link_data[i].size = num_devs;
                 to_sta_key(dev_array[i].cli_MACAddress, link_data[i].stats.mac_str);
@@ -297,8 +300,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
             }
 
     } 
-    wifi_util_dbg_print(WIFI_MON, "[%s %d] num-devs : %d link-quality-rfc : %d Ignite-rfc: %d vap-idx : %d isvapstamesh : %d\n", __func__, __LINE__, num_devs, link_quality_measurement, ctrl->rf_status_down, args->vap_index, (isVapSTAMesh(args->vap_index)));
-    if(link_data && num_devs != 0 && ((link_quality_measurement) || ((ctrl->rf_status_down == true) && (isVapSTAMesh(args->vap_index))))) {
+    if(link_data && num_devs != 0 && ((link_quality_measurement) || (rf_down_mesh_sta))) {
         apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_timeout, link_data, num_devs);
     }
     events_update_clientdiagdata(num_devs, args->vap_index, dev_array);
@@ -486,10 +488,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
                     __func__, __LINE__, to_sta_key(sta->sta_mac, sta_key), args->vap_index,
                     disconnected_time, sta->dev_stats.cli_Active);
                 //Rapid disconnect event to linkstats
-                wifi_util_dbg_print(WIFI_MON, "[%s %d] link-quality-rfc : %d Ignite-rfc: %d vap-idx : %d isvapstamesh : %d\n", __func__, __LINE__, link_quality_measurement, ctrl->rf_status_down, args->vap_index, (isVapSTAMesh(args->vap_index)));           
-
                 if (!is_zero_mac(sta->dev_stats.cli_MACAddress)) {
-                    bool rf_down_mesh_sta = ctrl->rf_status_down && isVapSTAMesh(args->vap_index);
                     bool link_qm_case  = link_quality_measurement &&
                         !sta->rapid_disconnect_flag &&
                         !rf_down_mesh_sta;

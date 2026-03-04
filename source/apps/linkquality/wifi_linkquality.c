@@ -127,7 +127,7 @@ void publish_station_score(const char *input_str, double score, double threshold
     if (score < threshold) {
         current_state = 0;
         snprintf(str, MAX_STR_LEN, "Non-Serviceable");
-    } else if (score > threshold) {
+    } else if (score >= threshold) {
         current_state = 1;
         snprintf(str, MAX_STR_LEN, "Serviceable");
     }
