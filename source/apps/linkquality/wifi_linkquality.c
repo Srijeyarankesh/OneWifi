@@ -101,7 +101,7 @@ static int ignite_score_log_timer(void *args)
     char buff[MAX_BUFF_LEN] = {0};
 
     get_formatted_time(tmp);
-    snprintf(buff, sizeof(buff), "%s WIFI_IGNITE_LINKQUALITY:%f %f", tmp, last_ignite_score, last_ignite_threshold);
+    snprintf(buff, sizeof(buff), "%s WIFI_IGNITE_LINKQUALITY:%f %f\n", tmp, last_ignite_score, last_ignite_threshold);
     wifi_util_info_print(WIFI_APPS, "%s:%d: %s\n", __func__, __LINE__, buff);
     write_to_file(wifi_health_log, buff);
     return RETURN_OK;
@@ -150,6 +150,9 @@ void publish_station_score(const char *input_str, double score, double threshold
         status = get_bus_descriptor()->bus_event_publish_fn(&wifi_app->ctrl->handle, WIFI_IGNITE_STATUS, &rdata);
         if (status != bus_error_success) {
             wifi_util_error_print(WIFI_CTRL, "%s:%d: bus: bus_event_publish_fn Event failed %d\n", __func__, __LINE__, status);
+        } //Remove the else if block as this is just a check
+        else if(status == bus_error_success){
+            wifi_util_info_print(WIFI_APPS, "%s:%d: bus: bus_event_publish_fn Event success %s\n", __func__, __LINE__, str);
         }
         last_service_state = current_state;
     }
