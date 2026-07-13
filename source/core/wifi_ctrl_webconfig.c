@@ -1780,7 +1780,7 @@ int webconfig_hal_mesh_backhaul_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_de
 
 static int remove_all_mac_acl_entries_from_cache_and_db(rdk_wifi_vap_info_t *current_config)
 {
-    wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d ENTRY remove_all_mac_acl_entries vap_index:%d\n", __func__, __LINE__, (current_config != NULL) ? current_config->vap_index : -1);
+    wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d ENTRY remove_all_mac_acl_entries vap_index:%d\n", __func__, __LINE__, (current_config != NULL) ? (int)current_config->vap_index : -1);
     if (current_config == NULL || current_config->acl_map == NULL) {
         wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d remove_all Current obj:%p is NULL - nothing to remove\n", __func__, __LINE__, current_config);
         return RETURN_ERR;
