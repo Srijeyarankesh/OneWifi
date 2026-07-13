@@ -1780,8 +1780,9 @@ int webconfig_hal_mesh_backhaul_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_de
 
 static int remove_all_mac_acl_entries_from_cache_and_db(rdk_wifi_vap_info_t *current_config)
 {
+    wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d ENTRY remove_all_mac_acl_entries vap_index:%d\n", __func__, __LINE__, (current_config != NULL) ? current_config->vap_index : -1);
     if (current_config == NULL || current_config->acl_map == NULL) {
-        wifi_util_info_print(WIFI_MGR, "%s:%d: Current obj:%p is NULL\n", __func__, __LINE__, current_config);
+        wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d remove_all Current obj:%p is NULL - nothing to remove\n", __func__, __LINE__, current_config);
         return RETURN_ERR;
     }
     acl_entry_t *current_acl_entry, *temp_acl_entry;
@@ -1792,8 +1793,8 @@ static int remove_all_mac_acl_entries_from_cache_and_db(rdk_wifi_vap_info_t *cur
     while (current_acl_entry != NULL) {
         to_mac_str(current_acl_entry->mac, current_mac_str);
         str_tolower(current_mac_str);
-        wifi_util_info_print(WIFI_MGR, "%s:%d: del mac:%s vap_index:%d\n",
-            __func__, __LINE__, current_mac_str, current_config->vap_index);
+        wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d remove_all del mac:%s vap_index:%d reason:%d\n",
+            __func__, __LINE__, current_mac_str, current_config->vap_index, current_acl_entry->reason);
         current_acl_entry = hash_map_get_next(current_config->acl_map, current_acl_entry);
         temp_acl_entry = hash_map_remove(current_config->acl_map, current_mac_str);
         if (temp_acl_entry != NULL) {
@@ -1863,6 +1864,7 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
 
     memset(macfilterkey, 0, sizeof(macfilterkey));
 
+    wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d ENTRY MACFILTER-RECONCILE subdoc_type:%d num_radios:%d\n", __func__, __LINE__, subdoc_type, getNumberRadios());
     //Apply the MacFilter Data
     for(radio_index = 0; radio_index < getNumberRadios(); radio_index++) {
         for (vap_index = 0; vap_index < getNumberVAPsPerRadio(radio_index); vap_index++) {
@@ -1870,27 +1872,32 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
             current_config = &mgr->radio_config[radio_index].vaps.rdk_vap_array[vap_index];
 
             if (new_config == NULL || current_config == NULL) {
-                wifi_util_error_print(WIFI_MGR,"%s %d NULL pointer \n", __func__, __LINE__);
+                wifi_util_error_print(WIFI_MGR,"SREESH: %s %d NULL pointer (new_config/current_config) radio:%d vap_loop_idx:%d\n", __func__, __LINE__, radio_index, vap_index);
                 return RETURN_ERR;
             }
 
+            wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d PER-VAP radio:%d vap_index:%d vap_name:%s mac_filter_initialized:%d new_acl_map:%p cur_acl_map:%p\n", __func__, __LINE__, radio_index, current_config->vap_index, current_config->vap_name, current_config->is_mac_filter_initialized, (void *)new_config->acl_map, (void *)current_config->acl_map);
+
             if (new_config->acl_map == current_config->acl_map) {
-                wifi_util_dbg_print(WIFI_MGR,"%s %d Same data returning \n", __func__, __LINE__);
+                wifi_util_info_print(WIFI_MGR,"SREESH: %s %d Same data returning (no reconcile) vap_index:%d\n", __func__, __LINE__, current_config->vap_index);
                 return RETURN_OK;
             }
 
             if ((subdoc_type == webconfig_subdoc_type_mesh) && (isVapMeshBackhaul(data->radios[radio_index].vaps.rdk_vap_array[vap_index].vap_index)) == FALSE) {
+                wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d MESH-SKIP non-backhaul vap_index:%d subdoc_type:%d (greylist preserved on this vap)\n", __func__, __LINE__, current_config->vap_index, subdoc_type);
                 continue;
             }
 
             if(current_config->is_mac_filter_initialized == true)  {
+                wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d DIFF-BRANCH (mac_filter_initialized=true) vap_index:%d - deleting running entries absent from new config (NO greylist guard here)\n", __func__, __LINE__, current_config->vap_index);
                 if (current_config->acl_map != NULL) {
                     current_acl_entry = hash_map_get_first(current_config->acl_map);
                     while (current_acl_entry != NULL) {
                         to_mac_str(current_acl_entry->mac, current_mac_str);
                         str_tolower(current_mac_str);
+                        wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d DIFF-EVAL vap_index:%d mac:%s reason:%d verdict:%s\n", __func__, __LINE__, current_config->vap_index, current_mac_str, current_acl_entry->reason, ((new_config->acl_map != NULL) && (hash_map_get(new_config->acl_map, current_mac_str) != NULL)) ? "KEEP(in-new-cfg)" : "DELETE(absent-in-new-cfg)");
                         if ((new_config->acl_map == NULL) || (hash_map_get(new_config->acl_map, current_mac_str) == NULL)) {
-                            wifi_util_info_print(WIFI_MGR, "%s:%d: calling wifi_delApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, current_mac_str, current_config->vap_index);
+                            wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d DIFF-DELETE calling wifi_delApAclDevice for mac %s vap_index %d reason:%d\n", __func__, __LINE__, current_mac_str, current_config->vap_index, current_acl_entry->reason);
 #ifdef NL80211_ACL
                         if (wifi_hal_delApAclDevice(current_config->vap_index, current_mac_str) != RETURN_OK) {
 #else
@@ -1916,6 +1923,7 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
                     }
                 }
             } else {
+                wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d FLUSH-BRANCH (mac_filter_initialized=false) vap_index:%d - flushing ALL HAL ACL entries via delApAclDevices (NO greylist guard here)\n", __func__, __LINE__, current_config->vap_index);
 #ifdef NL80211_ACL
                 wifi_hal_delApAclDevices(vap_index);
 #else
@@ -1925,6 +1933,7 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
                     " from cache and db vap_index:%d\n", __func__, __LINE__, vap_index);
                 remove_all_mac_acl_entries_from_cache_and_db(current_config);
                 current_config->is_mac_filter_initialized = true;
+                wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d FLUSH-DONE vap_index:%d HAL+cache+db cleared, mac_filter_initialized set true\n", __func__, __LINE__, current_config->vap_index);
             }
 
             if (new_config->acl_map != NULL) {
@@ -1934,7 +1943,7 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
                     str_tolower(new_mac_str);
                     acl_entry_t *check_acl_entry = hash_map_get(current_config->acl_map, new_mac_str);
                     if (check_acl_entry == NULL) { //mac is in new_config but not in running config need to update HAL
-                        wifi_util_info_print(WIFI_MGR, "%s:%d: calling wifi_addApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, new_mac_str, current_config->vap_index);
+                        wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d READD-FROM-NEWCFG calling wifi_addApAclDevice for mac %s vap_index %d (from webconfig MacFilter list)\n", __func__, __LINE__, new_mac_str, current_config->vap_index);
 #ifdef NL80211_ACL
                         if (wifi_hal_addApAclDevice(current_config->vap_index, new_mac_str) != RETURN_OK) {
 #else
@@ -2816,6 +2825,7 @@ webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc
                         wifi_util_error_print(WIFI_MGR, "%s:%d: mesh webconfig subdoc failed\n", __func__, __LINE__);
                         return webconfig_error_apply;
                     }
+                    wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d CALL-SITE mac_filter_apply from subdoc=MESH doc_type:%d\n", __func__, __LINE__, doc->type);
                     ret = webconfig_hal_mac_filter_apply(ctrl, &data->u.decoded, doc->type);
                     if (ret != RETURN_OK) {
                         wifi_util_error_print(WIFI_MGR, "%s:%d: macfilter for mesh webconfig subdoc failed\n", __func__, __LINE__);
@@ -2869,6 +2879,7 @@ webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc
                         wifi_util_error_print(WIFI_MGR, "%s:%d: mesh webconfig subdoc failed\n", __func__, __LINE__);
                         return webconfig_error_apply;
                     }
+                    wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d CALL-SITE mac_filter_apply from subdoc=MESH_BACKHAUL doc_type:%d\n", __func__, __LINE__, doc->type);
                     ret = webconfig_hal_mac_filter_apply(ctrl, &data->u.decoded, doc->type);
                     if (ret != RETURN_OK) {
                         wifi_util_error_print(WIFI_MGR, "%s:%d: macfilter for mesh webconfig subdoc failed\n", __func__, __LINE__);
@@ -2910,6 +2921,7 @@ webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc
                 }
             } else {
                 ctrl->webconfig_state |= ctrl_webconfig_state_macfilter_cfg_rsp_pending;
+                wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d CALL-SITE mac_filter_apply from subdoc=MAC_FILTER doc_type:%d\n", __func__, __LINE__, doc->type);
                 ret = webconfig_hal_mac_filter_apply(ctrl, &data->u.decoded, doc->type);
                 if (ret != RETURN_OK) {
                     wifi_util_error_print(WIFI_MGR, "%s:%d: macfilter subdoc failed\n", __func__, __LINE__);

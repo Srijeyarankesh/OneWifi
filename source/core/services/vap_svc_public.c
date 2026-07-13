@@ -113,6 +113,7 @@ void process_prefer_private_mac_filter(mac_address_t prefer_private_mac)
             acl_entry->reason = PREFER_PRIVATE_RFC_REJECT;
             acl_entry->expiry_time = 0;
 
+            wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d PREFER-PRIVATE-ACL-ADD mac:%s vap_index:%d reason:PREFER_PRIVATE_RFC_REJECT\n", __func__, __LINE__, new_mac_str, rdk_vap_info->vap_index);
 #ifdef NL80211_ACL
             if (wifi_hal_addApAclDevice(rdk_vap_info->vap_index, new_mac_str) != RETURN_OK) {
 #else
@@ -227,12 +228,14 @@ int vap_svc_public_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_inf
         }
         p_tgt_vap_map->vap_array[0].u.bss_info.enabled = enabled;
         if (greylist_rfc || ((pcfg != NULL && pcfg->prefer_private))) {
+            wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d PUBLIC-VAP-CREATE setApMacAddressControlMode=blacklist(2) vap_index:%d greylist_rfc:%d\n", __func__, __LINE__, p_tgt_vap_map->vap_array[0].vap_index, greylist_rfc);
 #ifdef NL80211_ACL
             wifi_hal_setApMacAddressControlMode(p_tgt_vap_map->vap_array[0].vap_index, 2);
 #else
             wifi_setApMacAddressControlMode(p_tgt_vap_map->vap_array[0].vap_index, 2);
 #endif
         } else {
+            wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d PUBLIC-VAP-CREATE setApMacAddressControlMode=disabled(0) vap_index:%d greylist_rfc:%d\n", __func__, __LINE__, p_tgt_vap_map->vap_array[0].vap_index, greylist_rfc);
 #ifdef NL80211_ACL
             wifi_hal_setApMacAddressControlMode(p_tgt_vap_map->vap_array[0].vap_index, 0);
 #else
@@ -274,6 +277,7 @@ int vap_svc_public_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_inf
     }
      update_global_cache(p_tgt_created_vap_map, rdk_vap_info);
     //Load all the Acl entries related to the created public vaps
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d CALL update_xfinity_acl_entries for vap_name:%s (reload greylist/acl into HAL)\n", __func__, __LINE__, p_tgt_vap_map->vap_array[0].vap_name);
     update_xfinity_acl_entries(p_tgt_vap_map->vap_array[0].vap_name);
     free(p_tgt_vap_map);
     free(p_tgt_created_vap_map);
@@ -289,7 +293,7 @@ int update_xfinity_acl_entries(char* tgt_vap_name)
     rdk_wifi_vap_info_t *rdk_vap_info = NULL;
     wifi_vap_info_map_t *wifi_vap_map = NULL;
 
-    wifi_util_dbg_print(WIFI_CTRL,"Enter %s tgt_vap_name=%s \n",__func__,tgt_vap_name);
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d ENTRY update_xfinity_acl_entries tgt_vap_name=%s\n", __func__, __LINE__, tgt_vap_name);
     for (itr = 0; itr < getNumberRadios(); itr++) {
         wifi_vap_map =(wifi_vap_info_map_t *) get_wifidb_vap_map(itr);
         for (itrj = 0; itrj < getMaxNumberVAPsPerRadio(itr); itrj++) {
@@ -303,6 +307,7 @@ int update_xfinity_acl_entries(char* tgt_vap_name)
            if ((strcmp(rdk_vap_info->vap_name,tgt_vap_name) != 0 )) {
                 continue;
             }
+            wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d XFINITY-RELOAD matched vap_name:%s vap_index:%d - flushing HAL ACL then re-adding from acl_map\n", __func__, __LINE__, rdk_vap_info->vap_name, vap_index);
 #ifdef NL80211_ACL
 	   wifi_hal_delApAclDevices(vap_index);
 #else
@@ -313,7 +318,7 @@ int update_xfinity_acl_entries(char* tgt_vap_name)
             while(acl_entry != NULL && acl_count < MAX_ACL_COUNT ) {
                 memcpy(&acl_device_mac,&acl_entry->mac,sizeof(mac_address_t));
                 to_mac_str(acl_device_mac, mac_str);
-                wifi_util_dbg_print(WIFI_CTRL, "%s:%d: calling wifi_addApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, mac_str, vap_index);
+                wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d XFINITY-RELOAD re-add calling wifi_addApAclDevice for mac %s vap_index %d reason:%d\n", __func__, __LINE__, mac_str, vap_index, acl_entry->reason);
 #ifdef NL80211_ACL
                 if (wifi_hal_addApAclDevice(vap_index, (CHAR *) mac_str) != RETURN_OK) {
 #else
@@ -351,12 +356,14 @@ void add_mac_mode_to_public_vaps(bool mac_mode)
                 continue;
             }
             if (mac_mode) {
+                wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d PUBLIC-VAP-MACMODE setApMacAddressControlMode=blacklist(2) vap_index:%d\n", __func__, __LINE__, rdk_vap_info->vap_index);
 #ifdef NL80211_ACL
                 wifi_hal_setApMacAddressControlMode(rdk_vap_info->vap_index, 2);
 #else
                 wifi_setApMacAddressControlMode(rdk_vap_info->vap_index, 2);
 #endif // NL80211_ACL
             } else {
+                wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d PUBLIC-VAP-MACMODE setApMacAddressControlMode=disabled(0) vap_index:%d\n", __func__, __LINE__, rdk_vap_info->vap_index);
 #ifdef NL80211_ACL
                 wifi_hal_setApMacAddressControlMode(rdk_vap_info->vap_index, 0);
 #else

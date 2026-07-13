@@ -3726,6 +3726,7 @@ int device_disassociated(int ap_index, char *src_mac, char *dest_mac, int type, 
         memcpy(greylist_data.sta_mac, &grey_list_mac, sizeof(mac_address_t));
         wifi_util_dbg_print(WIFI_MON," sending Greylist mac to  ctrl queue %s\n",src_mac);
         long long int expiry_time = get_current_time_in_sec() + GREYLIST_TIMEOUT_IN_SECONDS;
+        wifi_util_info_print(WIFI_MON, "SREESH: %s:%d DISASSOC-GREYLIST add_acl_entry_to_vap mac:%s ap_index:%d reason:%d expiry:%lld\n", __func__, __LINE__, src_mac, ap_index, reason, expiry_time);
         add_acl_entry_to_vap(src_mac, ap_index, reason, expiry_time, true);
     }
 
@@ -3911,6 +3912,7 @@ int device_deauthenticated(int ap_index, char *src_mac, char *dest_mac, int type
         memcpy(greylist_data.sta_mac, &grey_list_mac, sizeof(mac_address_t));
         wifi_util_dbg_print(WIFI_MON,"Sending Greylist mac to ctrl queue %s\n",src_mac);
         long long int expiry_time = get_current_time_in_sec() + GREYLIST_TIMEOUT_IN_SECONDS;
+        wifi_util_info_print(WIFI_MON, "SREESH: %s:%d DEAUTH-GREYLIST add_acl_entry_to_vap mac:%s ap_index:%d reason:%d expiry:%lld\n", __func__, __LINE__, src_mac, ap_index, reason, expiry_time);
         add_acl_entry_to_vap(src_mac, ap_index, reason, expiry_time, true);
     }
 

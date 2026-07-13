@@ -2281,6 +2281,7 @@ int sync_wifi_hal_hotspot_vap_mac_entry_with_db(void)
     rdk_wifi_vap_info_t *rdk_vap_info = NULL;
     int ret;
 
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d ENTRY sync_wifi_hal_hotspot_vap_mac_entry_with_db vap_index:%d (hotspot_open_5g)\n", __func__, __LINE__, vap_index);
     rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
     if ((rdk_vap_info == NULL) || (rdk_vap_info->acl_map == NULL)) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d: idk vap_info get failure for Vap:%d\n", __func__, __LINE__, vap_index);
@@ -2299,17 +2300,17 @@ int sync_wifi_hal_hotspot_vap_mac_entry_with_db(void)
     }
 
     if ((acl_db_count == 0) || (acl_db_count == acl_hal_count)) {
-        wifi_util_info_print(WIFI_CTRL, "%s:%d: acl_db_count = %d acl_hal_count = %d\r\n", __func__, __LINE__, acl_db_count, acl_hal_count);
+        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d SYNC in-sync acl_db_count = %d acl_hal_count = %d - no action\n", __func__, __LINE__, acl_db_count, acl_hal_count);
         return RETURN_OK;
     }
 
-    wifi_util_info_print(WIFI_CTRL, "%s:%d: mismatch in mac filter entries, hal_count:%d db_count:%d\r\n", __func__, __LINE__, acl_hal_count, acl_db_count);
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d SYNC MISMATCH re-pushing DB entries to HAL, hal_count:%d db_count:%d\n", __func__, __LINE__, acl_hal_count, acl_db_count);
 
     acl_entry = hash_map_get_first(rdk_vap_info->acl_map);
     while(acl_entry != NULL && acl_count < MAX_ACL_COUNT ) {
         memcpy(&acl_device_mac,&acl_entry->mac,sizeof(mac_address_t));
         to_mac_str(acl_device_mac, mac_str);
-        wifi_util_dbg_print(WIFI_CTRL, "%s:%d: calling wifi_addApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, mac_str, vap_index);
+        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d SYNC re-add calling wifi_addApAclDevice for mac %s vap_index %d reason:%d\n", __func__, __LINE__, mac_str, vap_index, acl_entry->reason);
 #ifdef NL80211_ACL
         if (wifi_hal_addApAclDevice(vap_index, (CHAR *) mac_str) != RETURN_OK) {
 #else

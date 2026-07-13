@@ -121,8 +121,10 @@ int update_acl_entries(wifi_vap_info_map_t *tgt_vap_map)
     acl_entry_t *acl_entry;
     uint8_t i = 0, vap_index = 0;
 
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d ENTRY update_acl_entries num_vaps:%d\n", __func__, __LINE__, tgt_vap_map->num_vaps);
     for (i = 0; i < tgt_vap_map->num_vaps; i++) {
         vap_index = tgt_vap_map->vap_array[i].vap_index;
+        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d update_acl_entries FLUSH vap_index:%d via delApAclDevices then re-add from acl_map\n", __func__, __LINE__, vap_index);
 #ifdef NL80211_ACL
         wifi_hal_delApAclDevices(vap_index);
 #else
@@ -131,6 +133,7 @@ int update_acl_entries(wifi_vap_info_map_t *tgt_vap_map)
         vap_info = get_wifidb_rdk_vap_info(vap_index);
 
         if ((vap_info == NULL) || (vap_info->acl_map == NULL)) {
+            wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d update_acl_entries vap_info/acl_map NULL after flush vap_index:%d (early return, no re-add)\n", __func__, __LINE__, vap_index);
             return RETURN_ERR;
         }
 
@@ -139,7 +142,7 @@ int update_acl_entries(wifi_vap_info_map_t *tgt_vap_map)
             if (!is_zero_mac(acl_entry->mac)) {
                 memcpy(&acl_device_mac,&acl_entry->mac,sizeof(mac_address_t));
                 to_mac_str(acl_device_mac, mac_str);
-                wifi_util_dbg_print(WIFI_CTRL, "%s:%d: calling wifi_addApAclDevice for mac %s vap_index %d\n", __func__, __LINE__, mac_str, vap_index);
+                wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d update_acl_entries re-add calling wifi_addApAclDevice for mac %s vap_index %d reason:%d\n", __func__, __LINE__, mac_str, vap_index, acl_entry->reason);
 #ifdef NL80211_ACL
                 if (wifi_hal_addApAclDevice(vap_index, (CHAR *) mac_str) != RETURN_OK) {
 #else

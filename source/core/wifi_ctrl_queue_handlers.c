@@ -162,7 +162,7 @@ const char* wifi_hotspot_action_to_string(wifi_hotspot_action_t action) {
 
 int remove_xfinity_acl_entries(bool remove_all_greylist_entry,bool prefer_private)
 {
-    wifi_util_dbg_print(WIFI_CTRL,"%s:%d  Enter \n", __FUNCTION__, __LINE__);
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d ENTRY remove_xfinity_acl_entries remove_all_greylist:%d prefer_private:%d\n", __func__, __LINE__, remove_all_greylist_entry, prefer_private);
     acl_entry_t *tmp_acl_entry = NULL, *acl_entry = NULL;
     rdk_wifi_vap_info_t *l_rdk_vap_array = NULL;
     unsigned int itr = 0, itrj = 0;
@@ -194,6 +194,7 @@ int remove_xfinity_acl_entries(bool remove_all_greylist_entry,bool prefer_privat
                         ((acl_entry->expiry_time <= tv_now.tv_sec) || remove_all_greylist_entry))) {
 
                         to_mac_str(acl_entry->mac, mac_str);
+                        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d XFINITY-ACL-DEL vap_index:%d mac:%s reason:%d expiry:%lld now:%ld remove_all:%d prefer_private:%d\n", __func__, __LINE__, l_rdk_vap_array->vap_index, mac_str, acl_entry->reason, (long long)acl_entry->expiry_time, (long)tv_now.tv_sec, remove_all_greylist_entry, prefer_private);
 #ifdef NL80211_ACL
                         ret = wifi_hal_delApAclDevice(l_rdk_vap_array->vap_index, mac_str);
 #else
@@ -1119,12 +1120,10 @@ bool is_greylist_enabled(int vap_index)
 {
     wifi_rfc_dml_parameters_t *rfc_info = (wifi_rfc_dml_parameters_t *)get_wifi_db_rfc_parameters();
     if (rfc_info && rfc_info->radiusgreylist_rfc && isVapHotspot(vap_index)) {
-        wifi_util_dbg_print(WIFI_CTRL, "%s:%d Greylist RFC is enabled & VAP = %d\n",
-            __func__, __LINE__, vap_index);
+        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d Greylist RFC is enabled & VAP = %d (radiusgreylist_rfc=1 && isVapHotspot=1)\n", __func__, __LINE__, vap_index);
         return true;
     }
-    wifi_util_dbg_print(WIFI_CTRL, "%s:%d Greylist RFC is disabled & VAP = %d\n",
-        __func__, __LINE__, vap_index);
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d Greylist RFC is disabled & VAP = %d (rfc_info=%p radiusgreylist_rfc=%d isVapHotspot=%d)\n", __func__, __LINE__, vap_index, (void *)rfc_info, (rfc_info ? rfc_info->radiusgreylist_rfc : -1), isVapHotspot(vap_index));
     return false;
 }
 
@@ -1170,14 +1169,14 @@ static int initiate_kick_config_change(int vap_index, wifi_vap_info_t *vap_info,
     rdk_wifi_vap_info_t *rdk_vap_info)
 {
     if (vap_info->u.bss_info.mac_filter_enable == FALSE) {
+        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d KICK-INIT setting ACL mode=blacklist(2) for vap_index:%d\n", __func__, __LINE__, vap_index);
 #ifdef NL80211_ACL
         if (wifi_hal_setApMacAddressControlMode(vap_index, 2) == RETURN_OK) {
 #else
         if (wifi_setApMacAddressControlMode(vap_index, 2) == RETURN_OK) {
 #endif
             rdk_vap_info->kick_device_config_change = TRUE;
-            wifi_util_dbg_print(WIFI_CTRL, "%s:%d Set ACL mode to blacklist for vap %d\n", __func__,
-                __LINE__, vap_index);
+            wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d KICK-INIT Set ACL mode to blacklist for vap %d\n", __func__, __LINE__, vap_index);
             return RETURN_OK;
         } else {
             wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to set ACL mode for vap %d\n", __func__,
@@ -1204,6 +1203,7 @@ static void finalize_kick_config_change(int vap_index, wifi_vap_info_t *vap_info
                     (vap_info->u.bss_info.mac_filter_mode == wifi_mac_filter_mode_black_list) ? 2 :
                                                                                                 1;
             }
+            wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d KICK-FINALIZE greylist NOT enabled -> restoring ACL mode:%d for vap_index:%d\n", __func__, __LINE__, filter_mode, vap_index);
 
 #ifdef NL80211_ACL
             if (wifi_hal_setApMacAddressControlMode(vap_index, filter_mode) == RETURN_OK) {
@@ -1220,7 +1220,7 @@ static void finalize_kick_config_change(int vap_index, wifi_vap_info_t *vap_info
             }
         } else {
             wifi_util_info_print(WIFI_CTRL,
-                "%s:%d Skipping MAC filter mode change - greylist is enabled for vap %d\n",
+                "SREESH: %s:%d KICK-FINALIZE Skipping MAC filter mode change - greylist is enabled for vap %d (greylist preserved)\n",
                 __func__, __LINE__, vap_index);
         }
         rdk_vap_info->kick_device_config_change = FALSE;
@@ -1232,16 +1232,18 @@ static int handle_acl_operation(int vap_index, char *mac_str, wifi_vap_info_t *v
 {
     bool success = false;
 
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d ENTRY handle_acl_operation vap_index:%d mac:%s op:%s kick_cfg_change:%d mac_filter_mode:%d\n", __func__, __LINE__, vap_index, mac_str, is_add_operation ? "ADD" : "DEL", rdk_vap_info->kick_device_config_change, vap_info->u.bss_info.mac_filter_mode);
     // For delete operations, check if MAC is greylisted
     if (!is_add_operation && is_greylist_enabled(vap_index) &&
         is_mac_greylisted(vap_index, mac_str)) {
-        wifi_util_info_print(WIFI_CTRL, "%s:%d Skipping removal of greylisted MAC %s for vap %d\n",
+        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d GREYLIST-GUARD Skipping removal of greylisted MAC %s for vap %d (protected)\n",
             __func__, __LINE__, mac_str, vap_index);
         return RETURN_OK; // Consider this a successful operation since we're protecting greylisted
                           // entries
     }
 
     if (rdk_vap_info->kick_device_config_change == TRUE) {
+        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d ACL-OP kick_device_config_change=TRUE path op:%s vap_index:%d mac:%s\n", __func__, __LINE__, is_add_operation ? "ADD" : "DEL", vap_index, mac_str);
         if (is_add_operation) {
 #ifdef NL80211_ACL
             success = (wifi_hal_addApAclDevice(vap_index, mac_str) == RETURN_OK);
@@ -1261,6 +1263,7 @@ static int handle_acl_operation(int vap_index, char *mac_str, wifi_vap_info_t *v
             return RETURN_ERR;
         }
     } else {
+        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d ACL-OP mac_filter_mode path mode:%d op:%s vap_index:%d mac:%s\n", __func__, __LINE__, vap_info->u.bss_info.mac_filter_mode, is_add_operation ? "ADD" : "DEL", vap_index, mac_str);
         if (vap_info->u.bss_info.mac_filter_mode == wifi_mac_filter_mode_black_list) {
             if (is_add_operation) {
 #ifdef NL80211_ACL
@@ -1334,6 +1337,7 @@ int process_maclist_timeout(void *arg)
         str_str = strtok_r(str_dup, ",", &cptr);
 
         while (str_str != NULL) {
+            wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d MACLIST-TIMEOUT DEL mac:%s vap_index:%d\n", __func__, __LINE__, str_str, kick->vap_index);
             if (handle_acl_operation(kick->vap_index, str_str, vap_info, rdk_vap_info, false) == RETURN_OK) {
                 wifi_util_dbg_print(WIFI_CTRL, "%s:%d Successfully processed MAC %s for vap %d\n",
                     __func__, __LINE__, str_str, kick->vap_index);
@@ -1405,8 +1409,7 @@ static int schedule_maclist_timeout_task(wifi_ctrl_t *ctrl, rdk_wifi_vap_info_t 
 void kick_all_macs(int vap_index, int timeout, rdk_wifi_vap_info_t *rdk_vap_info, wifi_ctrl_t *ctrl,
     wifi_vap_info_t *vap_info)
 {
-    wifi_util_dbg_print(WIFI_CTRL, "%s:%d Entry - vap %d, timeout %d\n", __func__, __LINE__,vap_index,
-        timeout);
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d ENTRY kick_all_macs - vap %d, timeout %d\n", __func__, __LINE__, vap_index, timeout);
 
     assoc_dev_data_t *assoc_dev_data = NULL;
     char *assoc_maclist = NULL;
@@ -1438,6 +1441,7 @@ void kick_all_macs(int vap_index, int timeout, rdk_wifi_vap_info_t *rdk_vap_info
         to_mac_str(assoc_dev_data->dev_stats.cli_MACAddress, mac_str);
 
         if (handle_acl_operation(vap_index, mac_str, vap_info, rdk_vap_info, true) == RETURN_OK) {
+            wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d KICK-ALL ADD-ok mac:%s vap_index:%d\n", __func__, __LINE__, mac_str, vap_index);
             strcat(assoc_maclist, mac_str);
             strcat(assoc_maclist, ",");
             has_successful_operations = true;
@@ -1561,8 +1565,8 @@ void process_kick_assoc_devices_event(void *data)
 
     str_to_mac_bytes(str_str, mac_bytes);
     if (memcmp(mac_bytes, kick_all, sizeof(mac_address_t)) == 0) {
-        wifi_util_info_print(WIFI_CTRL, "%s:%d Processing kick_all for vap %d\n", __func__, __LINE__,
-            vap_index);
+        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d KICK-EVENT Processing kick_all for vap %d timeout:%d\n", __func__, __LINE__,
+            vap_index, timeout);
         kick_all_macs(vap_index, timeout, rdk_vap_info, ctrl, vap_info);
         goto cleanup_all;
     }
@@ -1589,6 +1593,7 @@ void process_kick_assoc_devices_event(void *data)
         }
 
         if (IsClientConnected(rdk_vap_info, str_str)) {
+            wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d KICK-EVENT per-mac ADD mac:%s vap_index:%d\n", __func__, __LINE__, str_str, vap_index);
             int mac_processed_successfully = handle_acl_operation(vap_index, str_str, vap_info,
                 rdk_vap_info, true);
 
@@ -1648,6 +1653,7 @@ void finalize_acl_addition(const char *mac_str, int reason)
     time_info = localtime(&now);
     strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", time_info);
 
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d FINALIZE-ACL-ADD mac:%s reason:%d %s\n", __func__, __LINE__, mac_str, reason, (reason == WLAN_RADIUS_GREYLIST_REJECT) ? "GREYLIST-from-RADIUS" : "generic-ACL");
     if (reason == WLAN_RADIUS_GREYLIST_REJECT) {
         snprintf(log_buf, sizeof(log_buf), "%s Client added to grey list from RADIUS:%s\n",
             time_str, mac_str);
@@ -1692,12 +1698,12 @@ int add_acl_entry_to_vap(char *mac_str, int vap_index, int reason, long long int
 
     str_tolower(mac_str);
     wifi_util_info_print(WIFI_CTRL,
-        "%s:%d Adding MAC %s expiry time %lld reason %d  vap_index %d to ACL map\n", __func__,
-        __LINE__, mac_str, expiry_time, reason, vap_index);
+        "SREESH: %s:%d Adding MAC %s expiry time %lld reason %d  vap_index %d to ACL map (update_dml_health:%d)\n", __func__,
+        __LINE__, mac_str, expiry_time, reason, vap_index, update_dml_and_wifi_health);
     temp_acl_entry = hash_map_get(rdk_vap_info->acl_map, mac_str);
     if (temp_acl_entry != NULL) {
-        wifi_util_dbg_print(WIFI_CTRL, "%s:%d MAC %s already present in ACL map\n", __func__,
-            __LINE__, mac_str);
+        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d MAC %s already present in ACL map vap_index:%d (skip HAL add)\n", __func__,
+            __LINE__, mac_str, vap_index);
         return RETURN_ERR;
     }
 
@@ -1713,17 +1719,19 @@ int add_acl_entry_to_vap(char *mac_str, int vap_index, int reason, long long int
     acl_entry->reason = reason;
     acl_entry->expiry_time = expiry_time;
 
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d add_acl_entry_to_vap calling HAL addApAclDevice mac:%s vap_index:%d reason:%d\n", __func__, __LINE__, mac_str, vap_index, reason);
 #ifdef NL80211_ACL
     if (wifi_hal_addApAclDevice(vap_index, mac_str) != RETURN_OK) {
 #else
     if (wifi_addApAclDevice(vap_index, mac_str) != RETURN_OK) {
 #endif
-        wifi_util_error_print(WIFI_CTRL, "%s:%d wifi_addApAclDevice failed. vap_index %d, MAC %s\n",
+        wifi_util_error_print(WIFI_CTRL, "SREESH: %s:%d wifi_addApAclDevice failed. vap_index %d, MAC %s\n",
             __func__, __LINE__, vap_index, mac_str);
         free(acl_entry);
         return RETURN_ERR;
     }
 
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d add_acl_entry_to_vap HAL add OK, storing in acl_map+db mac:%s vap_index:%d\n", __func__, __LINE__, mac_str, vap_index);
     hash_map_put(rdk_vap_info->acl_map, strdup(mac_str), acl_entry);
 
     snprintf(macfilterkey, sizeof(macfilterkey), "%s-%s", rdk_vap_info->vap_name, mac_str);
@@ -1760,10 +1768,10 @@ void process_greylist_mac_filter(void *data)
     greylist_data_t *grey_data = (greylist_data_t *)data;
     reason = grey_data->reason;
 
-    wifi_util_dbg_print(WIFI_CTRL, "Disassociation reason is %d\n", reason);
+    wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d ENTRY process_greylist_mac_filter Disassociation reason is %d\n", __func__, __LINE__, reason);
 
     if (reason != WLAN_RADIUS_GREYLIST_REJECT) {
-        wifi_util_dbg_print(WIFI_CTRL, "This Not a Greylisted disassoc device\n");
+        wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d process_greylist_mac_filter This Not a Greylisted disassoc device (reason:%d) - returning\n", __func__, __LINE__, reason);
         return;
     }
 
@@ -1802,6 +1810,7 @@ void process_greylist_mac_filter(void *data)
             }
 
             result = add_acl_entry_to_vap(new_mac_str, vap_index, reason, expiry_time, false);
+            wifi_util_info_print(WIFI_CTRL, "SREESH: %s:%d GREYLIST-ADD to hotspot vap mac:%s vap_index:%d vap_name:%s reason:%d expiry:%ld result:%d\n", __func__, __LINE__, new_mac_str, vap_index, rdk_vap_info->vap_name, reason, expiry_time, result);
 
             if (result == RETURN_OK) {
                 greylist_client_added = true;
