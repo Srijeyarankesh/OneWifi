@@ -1888,6 +1888,11 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
                 continue;
             }
 
+			if ((subdoc_type != webconfig_subdoc_type_mac_filter) && isVapHotspot(data->radios[radio_index].vaps.rdk_vap_array[vap_index].vap_index)) {
+                wifi_util_info_print(WIFI_MGR, "SREEESH: %s:%d Skipping the function since encountered vap is vap_name=%s and subdoc_type:%d\n",__func__,__LINE__, current_config->vap_name, subdoc_type);
+                continue;
+            }
+
             if(current_config->is_mac_filter_initialized == true)  {
                 wifi_util_info_print(WIFI_MGR, "SREESH: %s:%d DIFF-BRANCH (mac_filter_initialized=true) vap_index:%d - deleting running entries absent from new config (NO greylist guard here)\n", __func__, __LINE__, current_config->vap_index);
                 if (current_config->acl_map != NULL) {
