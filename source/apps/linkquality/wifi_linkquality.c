@@ -17,6 +17,7 @@
   limitations under the License.
  **************************************************************************/
 
+#include "lq_ipc_sender.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include "stdlib.h"
@@ -223,6 +224,7 @@ int link_quality_register_station(wifi_app_t *apps, wifi_event_t *arg)
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     if ( ctrl->rf_status_down) {
         register_station_mac(str);
+        lq_ipc_send(LQ_IPC_MSG_REGISTER_STA, str, 1, strlen(str) + 1);
         qmgr_register_score_callback(publish_station_score);
     }
     return RETURN_OK;
@@ -240,6 +242,7 @@ int link_quality_unregister_station(wifi_app_t *apps, wifi_event_t *arg)
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     if ( ctrl->rf_status_down) {
         unregister_station_mac(str);
+        lq_ipc_send(LQ_IPC_MSG_UNREGISTER_STA, str, 1, strlen(str) + 1);
     }
 
     ignite_lq_state_t *ignite = &apps->data.u.linkquality.ignite;
@@ -307,6 +310,7 @@ int link_quality_hal_rapid_connect(wifi_app_t *apps, void *arg, int len)
     );
 
     disconnect_link_stats(stats);
+    lq_ipc_send(LQ_IPC_MSG_RAPID_DISCONNECT, stats, 1, sizeof(stats_arg_t));
     return RETURN_OK;
 
 }
@@ -403,6 +407,7 @@ int link_quality_hal_disconnect(wifi_app_t *apps, void *arg, int len)
     );      
  
     remove_link_stats(stats);
+    lq_ipc_send(LQ_IPC_MSG_DISCONNECT, stats, 1, sizeof(stats_arg_t));
     return RETURN_OK;
              
  } 
@@ -432,6 +437,7 @@ int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
         );
 
         add_stats_metrics(stats);
+        lq_ipc_send(LQ_IPC_MSG_PERIODIC_STATS, stats, 1, sizeof(stats_arg_t));
     }
 
     return RETURN_OK;

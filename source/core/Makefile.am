@@ -171,6 +171,7 @@ OneWifi_CPPFLAGS += -I$(top_srcdir)/source/apps/cac/
 endif
 
 OneWifi_SOURCES += $(top_srcdir)/source/apps/linkquality/wifi_linkquality.c
+OneWifi_SOURCES += $(top_srcdir)/source/apps/linkquality/lq_ipc_sender.c
 OneWifi_CPPFLAGS += -I$(top_srcdir)/source/apps/linkquality/
 
 if WIFI_SENSING_APP_SUPPORT

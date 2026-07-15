@@ -42,6 +42,9 @@ extern "C" {
 
 #define LINKQ_VALID_MASK    0xFF   /* Only first 8 bits valid */
 
+#define LINK_QTY_B0  1.386
+#define LINK_QTY_B1  0.02
+
 typedef struct {
     double threshold;
     unsigned int sampling;
