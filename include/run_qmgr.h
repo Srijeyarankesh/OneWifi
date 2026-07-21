@@ -55,6 +55,7 @@ typedef struct {
     mac_addr_str_t mac_str;
     unsigned int vap_index;
     wifi_associated_dev3_t dev;
+    int channel_utilization;   /* radio-level channel utilization %, 0-100; 0 if unknown */
   } stats_arg_t;
 
 typedef struct {

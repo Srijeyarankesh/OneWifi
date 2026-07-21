@@ -80,16 +80,18 @@ static int build_tlv(uint32_t msg_type, const void *entries,
             __func__, __LINE__, needed, buf_sz);
         return -1;
     }
-    if (data_sz > UINT16_MAX) {
+    if (data_sz > UINT16_MAX || entry_size > UINT16_MAX) {
         wifi_util_error_print(WIFI_APPS,
-            "%s:%d [TLV] payload %zu exceeds uint16_t max\n",
-            __func__, __LINE__, data_sz);
+            "%s:%d [TLV] payload %zu / elem %zu exceeds uint16_t max\n",
+            __func__, __LINE__, data_sz, entry_size);
         return -1;
     }
 
     lq_tlv_t *tlv = (lq_tlv_t *)buf;
-    tlv->type = (uint8_t)msg_type;
-    tlv->len  = (uint16_t)data_sz;
+    tlv->type      = (uint8_t)msg_type;
+    tlv->version   = LQ_IPC_WIRE_VERSION;
+    tlv->elem_size = (uint16_t)entry_size;
+    tlv->len       = (uint16_t)data_sz;
     if (data_sz > 0 && entries != NULL) {
         memcpy(tlv->value, entries, data_sz);
     }

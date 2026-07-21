@@ -258,6 +258,15 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
         wifi_util_dbg_print(WIFI_MON, "%s:%d: diag result: number of devs: %d\n", __func__, __LINE__,
          num_devs);
     }
+
+    /* Radio-level channel utilization (%, 0-100) is shared by every client on
+     * this vap/radio; compute it once and ship it per-client to the wei scorer. */
+    int chan_util = 0;
+    if (link_data != NULL &&
+        get_radio_channel_utilization(radio, &chan_util) != RETURN_OK) {
+        chan_util = 0;
+    }
+
     for (i = 0; i < num_devs; i++) {
         wifi_util_dbg_print(WIFI_MON,
             "cli_MACAddress: %s\ncli_MLDAddr: %s\ncli_MLDEnable: %d\ncli_AuthenticationState: %d\n"
@@ -296,6 +305,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
             to_sta_key(dev_array[i].cli_MACAddress, link_data[i].stats.mac_str);
             link_data[i].stats.dev = dev_array[i];
             link_data[i].stats.vap_index = args->vap_index;
+            link_data[i].stats.channel_utilization = chan_util;
             wifi_util_dbg_print(WIFI_MON,
                 "cli_SNR:%d cli_PacketsSent:%lu cli_ErrorsSent:%lu cli_LastDataDownlinkRate:%d "
                 "cli_MaxDownlinkRate=%d vap_index=%d\n",

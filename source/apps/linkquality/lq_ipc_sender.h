@@ -22,6 +22,11 @@ extern "C" {
 /* AF_UNIX datagram socket shared with the wei scorer daemon (receiver). */
 #define LQ_STATS_SOCKET_PATH "/tmp/linkquality_stats.sock"
 
+/* Wire-format version. MUST equal weid_receiver.h's LQ_IPC_WIRE_VERSION. Bump on
+ * any change to lq_tlv_t framing or on-wire payload meaning; the receiver rejects
+ * a datagram whose version it does not recognise. */
+#define LQ_IPC_WIRE_VERSION 1u
+
 /*
  * IPC message types. Full code space is defined for wire completeness; the
  * daemon acts only on PERIODIC_STATS, DISCONNECT, RAPID_DISCONNECT,
@@ -40,12 +45,21 @@ extern "C" {
 #define LQ_IPC_MSG_SET_SCORE_PARAMS 11
 
 /*
- * The whole datagram is one TLV: 1-byte type, 2-byte length, packed payload.
- * value begins at byte 3 (no padding). AF_UNIX SOCK_DGRAM preserves datagram
- * boundaries; the receiver derives element count from len / sizeof(element).
+ * The whole datagram is one versioned TLV, packed so value begins at byte 6:
+ *   type       1B  LQ_IPC_MSG_*
+ *   version    1B  LQ_IPC_WIRE_VERSION
+ *   elem_size  2B  sizeof ONE payload element (sizeof(stats_arg_t) for stat
+ *                  messages) so the receiver can reject a struct-layout drift
+ *                  between the two builds instead of silently misparsing it
+ *   len        2B  total payload bytes (== count * elem_size)
+ *   value      NB  packed payload
+ * AF_UNIX SOCK_DGRAM preserves datagram boundaries; the receiver derives the
+ * element count from len / elem_size after checking version and elem_size.
  */
 typedef struct {
     uint8_t  type;
+    uint8_t  version;
+    uint16_t elem_size;
     uint16_t len;
     uint8_t  value[];
 } __attribute__((__packed__)) lq_tlv_t;
