@@ -12,9 +12,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <errno.h>
+#include <pthread.h>
+#include <stdarg.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -27,6 +31,61 @@
 /* Cached datagram socket fd; reopened lazily and after a send failure that
  * indicates the receiver (wei) restarted and recreated its socket file. */
 static int lq_ipc_fd = -1;
+
+/* ---- dedicated OneWifi<->wei IPC/ConnPerf pathway log (tmpfs) -------------- */
+#define LQ_IPC_LOG_PATH      "/tmp/onewifi_wei_ipc.log"
+#define LQ_IPC_LOG_MAX_BYTES (8 * 1024 * 1024)
+
+static pthread_mutex_t lq_ipc_log_lock = PTHREAD_MUTEX_INITIALIZER;
+static FILE           *lq_ipc_log_fp;
+static long            lq_ipc_log_bytes;
+
+/* Append one timestamped line to the dedicated IPC log. Thread-safe (sender runs
+ * on the ctrl/apps thread, the ConnPerf consumer on the bus-callback thread) and
+ * size-capped so extensive logging on tmpfs can never exhaust RAM. */
+void lq_ipc_debug_log(const char *fmt, ...)
+{
+    struct timespec ts;
+    struct tm tm_buf;
+    char stamp[32];
+    char line[1024];
+    int off, avail, n;
+    va_list ap;
+
+    if (fmt == NULL) {
+        return;
+    }
+
+    clock_gettime(CLOCK_REALTIME, &ts);
+    if (localtime_r(&ts.tv_sec, &tm_buf) != NULL &&
+        strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", &tm_buf) > 0) {
+        off = snprintf(line, sizeof(line), "%s.%03ld ", stamp, ts.tv_nsec / 1000000L);
+    } else {
+        off = 0;
+    }
+    if (off < 0) off = 0;
+    if (off > (int)sizeof(line) - 1) off = (int)sizeof(line) - 1;
+
+    avail = (int)sizeof(line) - off;
+    va_start(ap, fmt);
+    n = vsnprintf(line + off, (size_t)avail, fmt, ap);
+    va_end(ap);
+    if (n > 0) off += (n < avail) ? n : (avail - 1);
+
+    pthread_mutex_lock(&lq_ipc_log_lock);
+    if (lq_ipc_log_fp == NULL) {
+        lq_ipc_log_fp = fopen(LQ_IPC_LOG_PATH, "w");
+        lq_ipc_log_bytes = 0;
+    } else if (lq_ipc_log_bytes >= LQ_IPC_LOG_MAX_BYTES) {
+        lq_ipc_log_fp = freopen(LQ_IPC_LOG_PATH, "w", lq_ipc_log_fp);
+        lq_ipc_log_bytes = 0;
+    }
+    if (lq_ipc_log_fp != NULL && off > 0) {
+        lq_ipc_log_bytes += (long)fwrite(line, 1, (size_t)off, lq_ipc_log_fp);
+        fflush(lq_ipc_log_fp);
+    }
+    pthread_mutex_unlock(&lq_ipc_log_lock);
+}
 
 static void lq_ipc_reset_fd(void)
 {
@@ -115,6 +174,8 @@ int lq_ipc_send(uint32_t msg_type, const void *entries,
                     wifi_util_dbg_print(WIFI_APPS,
                         "%s:%d [IPC-SEND] drop %s: vap_index=%u not private\n",
                         __func__, __LINE__, lq_msg_type_str(msg_type), s[i].vap_index);
+                    lq_ipc_debug_log("[IPC-SEND] DROP %s: vap_index=%u not private\n",
+                        lq_msg_type_str(msg_type), s[i].vap_index);
                     return 0;
                 }
             }
@@ -168,9 +229,18 @@ int lq_ipc_send(uint32_t msg_type, const void *entries,
     }
 
     if (ret < 0) {
-        wifi_util_dbg_print(WIFI_APPS,
-            "%s:%d [IPC-SEND] %s dropped: %s\n",
+        wifi_util_info_print(WIFI_APPS,
+            "%s:%d [IPC-SEND] %s DROPPED: %s\n",
             __func__, __LINE__, lq_msg_type_str(msg_type), strerror(errno));
+        lq_ipc_debug_log("[IPC-SEND] %s DROPPED: %s\n",
+            lq_msg_type_str(msg_type), strerror(errno));
+    } else {
+        wifi_util_info_print(WIFI_APPS,
+            "%s:%d [IPC-SEND] sent %s count=%u bytes=%d -> %s\n",
+            __func__, __LINE__, lq_msg_type_str(msg_type), count, tlv_len,
+            LQ_STATS_SOCKET_PATH);
+        lq_ipc_debug_log("[IPC-SEND] sent %s count=%u bytes=%d -> %s\n",
+            lq_msg_type_str(msg_type), count, tlv_len, LQ_STATS_SOCKET_PATH);
     }
 
     free(buf);

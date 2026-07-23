@@ -24,6 +24,7 @@
 #include "wifi_ctrl.h"
 #include "wifi_mgr.h"
 #include "wifi_util.h"
+#include "lq_ipc_sender.h"   /* lq_ipc_debug_log() -- shared dedicated IPC log */
 #include "wifi_monitor.h"
 #include "wifi_webconfig.h"
 #include "run_qmgr.h"
@@ -2430,6 +2431,70 @@ void event_receive_subscription_handler(char *event_name, bus_error_t error, voi
     }
 }
 
+/* Consumes the WEI daemon's connected-performance report: a JSON string event
+ * (client_mac, score, verdict, report_time, ...) published through
+ * WIFI_CONNPERF_REPORT_EVENT. Total and crash-safe: validates the event name and
+ * payload type, parses the JSON defensively, logs the decoded fields at INFO, and
+ * frees the cJSON tree on every path. */
+static void connperfReportHandler(char *event_name, bus_data_prop_t *p_data, void *userData)
+{
+    (void)userData;
+    cJSON *doc, *mac, *score, *verdict, *ts;
+    char *json;
+
+    if (event_name == NULL || p_data == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL event_name/p_data\n", __func__, __LINE__);
+        return;
+    }
+    if (strcmp(event_name, WIFI_CONNPERF_REPORT_EVENT) != 0) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d unexpected event:%s\n", __func__, __LINE__,
+            event_name);
+        return;
+    }
+    if (p_data->value.data_type != bus_data_type_string) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d unexpected data_type:%x (want string) for %s\n",
+            __func__, __LINE__, p_data->value.data_type, event_name);
+        return;
+    }
+
+    json = (char *)p_data->value.raw_data.bytes;
+    if (json == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL payload for %s\n", __func__, __LINE__,
+            event_name);
+        return;
+    }
+
+    wifi_util_info_print(WIFI_CTRL, "%s:%d [CONNPERF-RECV] raw=%s\n", __func__, __LINE__, json);
+
+    doc = cJSON_Parse(json);
+    if (doc == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d cJSON_Parse failed for ConnPerf report\n",
+            __func__, __LINE__);
+        return;
+    }
+
+    mac     = cJSON_GetObjectItem(doc, "client_mac");
+    score   = cJSON_GetObjectItem(doc, "score");
+    verdict = cJSON_GetObjectItem(doc, "verdict");
+    ts      = cJSON_GetObjectItem(doc, "report_time");
+
+    wifi_util_info_print(WIFI_CTRL,
+        "%s:%d [CONNPERF-RECV] mac=%s score=%d verdict=%s report_time=%s\n",
+        __func__, __LINE__,
+        (cJSON_IsString(mac)     && mac->valuestring)     ? mac->valuestring     : "?",
+        cJSON_IsNumber(score)    ? (int)score->valuedouble : -1,
+        (cJSON_IsString(verdict) && verdict->valuestring) ? verdict->valuestring : "?",
+        (cJSON_IsString(ts)      && ts->valuestring)      ? ts->valuestring      : "?");
+
+    lq_ipc_debug_log("[CONNPERF-RECV] mac=%s score=%d verdict=%s report_time=%s\n",
+        (cJSON_IsString(mac)     && mac->valuestring)     ? mac->valuestring     : "?",
+        cJSON_IsNumber(score)    ? (int)score->valuedouble : -1,
+        (cJSON_IsString(verdict) && verdict->valuestring) ? verdict->valuestring : "?",
+        (cJSON_IsString(ts)      && ts->valuestring)      ? ts->valuestring      : "?");
+
+    cJSON_Delete(doc);
+}
+
 void bus_subscribe_events(wifi_ctrl_t *ctrl)
 {
     wifi_bus_desc_t *bus_desc = get_bus_descriptor();
@@ -2528,6 +2593,24 @@ void bus_subscribe_events(wifi_ctrl_t *ctrl)
             ctrl->mesh_status_subscribed = true;
             wifi_util_dbg_print(WIFI_CTRL, "%s:%d MeshStatus subscribe success, rc: %d\n",
                 __FUNCTION__, __LINE__, rc);
+        }
+    }
+
+    if (ctrl->connperf_report_subscribed == false) {
+        int rc = bus_desc->bus_event_subs_fn(&ctrl->handle, WIFI_CONNPERF_REPORT_EVENT,
+            connperfReportHandler, NULL, 0);
+        if (rc != bus_error_success) {
+            wifi_util_error_print(WIFI_CTRL,
+                "%s:%d bus event:%s subscribe FAILED rc:%d (will retry)\n",
+                __FUNCTION__, __LINE__, WIFI_CONNPERF_REPORT_EVENT, rc);
+            lq_ipc_debug_log("[CONNPERF-SUB] subscribe FAILED rc=%d event=%s (will retry)\n",
+                rc, WIFI_CONNPERF_REPORT_EVENT);
+        } else {
+            ctrl->connperf_report_subscribed = true;
+            wifi_util_info_print(WIFI_CTRL, "%s:%d bus event:%s subscribe success\n",
+                __FUNCTION__, __LINE__, WIFI_CONNPERF_REPORT_EVENT);
+            lq_ipc_debug_log("[CONNPERF-SUB] subscribe SUCCESS event=%s\n",
+                WIFI_CONNPERF_REPORT_EVENT);
         }
     }
 

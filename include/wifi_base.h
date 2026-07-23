@@ -91,6 +91,10 @@ extern "C" {
 #define WIFI_QUALITY_LINKREPORT      "Device.WiFi.LinkReport"
 #define WIFI_LINK_QUALITY_DATA      "Device.WiFi.LinkQualityData"
 #define WIFI_LINK_QUALITY_FLAGS     "Device.WiFi.LinkQualityFlags"
+/* WEI connected-performance (ConnPerf) report event, published by the standalone
+ * wei daemon (bus component "WifiConnPerf"). MUST equal wei's
+ * WEI_CONNPERF_DM_REPORT_EVENT. Payload is a JSON string (bus_data_type_string). */
+#define WIFI_CONNPERF_REPORT_EVENT  "Device.WiFi.X_RDK_ConnPerf.Report"
 #define WIFI_IGNITE_STATUS "Device.WiFi.EndPoint.1.LinkQualityStatus"
 #define WIFI_NASTA_RESPONSE_EVENT                      "Device.WiFi.EM.NaStaResponse"
 #define WIFI_ACCESSPOINT_GET_NASTA                     "Device.WiFi.AccessPoint.{i}.X_RDKCENTRAL-COM_GetNaSta"

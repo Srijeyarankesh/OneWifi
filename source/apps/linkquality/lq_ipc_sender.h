@@ -75,6 +75,14 @@ typedef struct {
 int lq_ipc_send(uint32_t msg_type, const void *entries,
                 uint32_t count, size_t entry_size);
 
+/*
+ * Append one formatted line to the dedicated OneWifi<->wei IPC/ConnPerf debug
+ * log on tmpfs (/tmp/onewifi_wei_ipc.log). Thread-safe and size-capped (8 MB,
+ * single-file rotation) so it can never exhaust RAM. Lets the whole IPC pathway
+ * (sender + ConnPerf report consumer) be traced from one dedicated file.
+ */
+void lq_ipc_debug_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+
 #ifdef __cplusplus
 }
 #endif
