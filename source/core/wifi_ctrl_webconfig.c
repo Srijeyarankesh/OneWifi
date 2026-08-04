@@ -1863,11 +1863,21 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
 
     memset(macfilterkey, 0, sizeof(macfilterkey));
 
+    wifi_util_info_print(WIFI_MGR, "%s:%d: Enter subdoc_type:%d num_radios:%u\n",
+        __func__, __LINE__, subdoc_type, getNumberRadios());
+
     //Apply the MacFilter Data
     for(radio_index = 0; radio_index < getNumberRadios(); radio_index++) {
         for (vap_index = 0; vap_index < getNumberVAPsPerRadio(radio_index); vap_index++) {
             new_config = &data->radios[radio_index].vaps.rdk_vap_array[vap_index];
             current_config = &mgr->radio_config[radio_index].vaps.rdk_vap_array[vap_index];
+
+            wifi_util_info_print(WIFI_MGR,
+                "%s:%d: radio_index:%u array_slot:%u new_config global_vap_index:%u vap_name:%s"
+                " current_config global_vap_index:%u vap_name:%s\n",
+                __func__, __LINE__, radio_index, vap_index,
+                new_config->vap_index, new_config->vap_name,
+                current_config->vap_index, current_config->vap_name);
 
             if (new_config == NULL || current_config == NULL) {
                 wifi_util_error_print(WIFI_MGR,"%s %d NULL pointer \n", __func__, __LINE__);
@@ -1875,18 +1885,32 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
             }
 
             if (new_config->acl_map == current_config->acl_map) {
-                wifi_util_dbg_print(WIFI_MGR,"%s %d Same data returning \n", __func__, __LINE__);
+                wifi_util_info_print(WIFI_MGR,
+                    "%s:%d: acl_map ptr identical (both %p), skipping vap_name:%s global_vap_index:%u\n",
+                    __func__, __LINE__, (void *)new_config->acl_map,
+                    current_config->vap_name, current_config->vap_index);
                 return RETURN_OK;
             }
 
             if ((subdoc_type == webconfig_subdoc_type_mesh) && (isVapMeshBackhaul(data->radios[radio_index].vaps.rdk_vap_array[vap_index].vap_index)) == FALSE) {
+                wifi_util_info_print(WIFI_MGR,
+                    "%s:%d: Skip vap_name:%s global_vap_index:%u (subdoc=mesh, not mesh_backhaul)\n",
+                    __func__, __LINE__, current_config->vap_name, current_config->vap_index);
                 continue;
             }
 
             if ((subdoc_type != webconfig_subdoc_type_mac_filter) &&
                 isVapHotspot(data->radios[radio_index].vaps.rdk_vap_array[vap_index].vap_index)) {
+                wifi_util_info_print(WIFI_MGR,
+                    "%s:%d: Skip vap_name:%s global_vap_index:%u (hotspot, subdoc_type:%d != mac_filter)\n",
+                    __func__, __LINE__, current_config->vap_name, current_config->vap_index, subdoc_type);
                 continue;
             }
+
+            wifi_util_info_print(WIFI_MGR,
+                "%s:%d: Processing vap_name:%s global_vap_index:%u is_mac_filter_initialized:%d\n",
+                __func__, __LINE__, current_config->vap_name, current_config->vap_index,
+                current_config->is_mac_filter_initialized);
 
             if(current_config->is_mac_filter_initialized == true)  {
                 if (current_config->acl_map != NULL) {
@@ -1921,13 +1945,17 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
                     }
                 }
             } else {
+                wifi_util_info_print(WIFI_MGR,
+                    "%s:%d: First-time init: calling delApAclDevices vap_name:%s global_vap_index:%u array_slot:%u\n",
+                    __func__, __LINE__, current_config->vap_name, current_config->vap_index, vap_index);
 #ifdef NL80211_ACL
-                wifi_hal_delApAclDevices(vap_index);
+                wifi_hal_delApAclDevices(current_config->vap_index);
 #else
-        wifi_delApAclDevices(vap_index);
+                wifi_delApAclDevices(current_config->vap_index);
 #endif
                 wifi_util_info_print(WIFI_MGR, "%s:%d: remove all mac acl entries"
-                    " from cache and db vap_index:%d\n", __func__, __LINE__, vap_index);
+                    " from cache and db vap_name:%s global_vap_index:%u\n",
+                    __func__, __LINE__, current_config->vap_name, current_config->vap_index);
                 remove_all_mac_acl_entries_from_cache_and_db(current_config);
                 current_config->is_mac_filter_initialized = true;
             }
