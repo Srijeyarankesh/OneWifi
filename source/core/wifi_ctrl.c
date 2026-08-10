@@ -179,6 +179,7 @@ void reset_wifi_radios(void)
 {
     wifi_radio_set_enable(false);
     wifi_radio_set_enable(true);
+    radio_reset_pending_count = 0;
 }
 
 unsigned int selfheal_event_publish_time(void)
