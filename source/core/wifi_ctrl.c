@@ -42,6 +42,7 @@
 
 unsigned int get_Uptime(void);
 unsigned int startTime[MAX_NUM_RADIOS];
+static unsigned int radio_reset_pending_count;
 #define BUF_SIZE              256
 extern webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data);
 void get_action_frame_evt_params(uint8_t *frame, uint32_t len, frame_data_t *mgmt_frame, wifi_event_subtype_t *evt_subtype);
