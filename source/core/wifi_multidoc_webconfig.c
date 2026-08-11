@@ -1290,7 +1290,7 @@ static int update_vap_info_managed_guest(void *data, void *amenities_blob, wifi_
         snprintf(vap_info->bridge_name, sizeof(vap_info->bridge_name), "br106");
         snprintf(vap_info->repurposed_bridge_name, sizeof(vap_info->repurposed_bridge_name), "br106");
         vap_info->u.bss_info.showSsid = false;
-        vap_info->u.bss_info.enabled = true;
+        vap_info->u.bss_info.enabled = false;
         vap_info->u.bss_info.bssMaxSta = 75;
         memset(&vap_info->u.bss_info.security.repurposed_radius,0,sizeof(vap_info->u.bss_info.security.repurposed_radius));
         vap_info->u.bss_info.am_config.npc.speed_tier = 2;
