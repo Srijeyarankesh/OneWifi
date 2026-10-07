@@ -330,7 +330,7 @@ int wpa3_enhanced_assoc_frame_data(frame_data_t *msg) {
     }
 
     wifi_util_dbg_print(WIFI_MON, "%s:%d wifi mgmt frame message: ap_index:%d length:%d type:%d dir:%d src mac:%s rssi:%d\r\n", __func__, __LINE__, msg->frame.ap_index, msg->frame.len, msg->frame.type, msg->frame.dir, str, msg->frame.sig_dbm);
-    if (!isVapPrivate(msg->frame.ap_index)){
+    if (!isVapPrivateNetwork(msg->frame.ap_index)) {
         wifi_util_dbg_print(WIFI_MON, "%s:%d It's not a private vap\r\n", __func__, __LINE__);
         return RETURN_OK;
     }
@@ -381,7 +381,7 @@ void update_wpa3_enhanced_sta_all_vap_data_entry(void) {
     wifi_mgr_t *mgr = get_wifimgr_obj();
     for (index = 0; index < getTotalNumberVAPs(); index++) {
         vap_index = VAP_INDEX(mgr->hal_cap, index);
-        if (isVapPrivate(vap_index)){
+        if (isVapPrivateNetwork(vap_index)) {
             update_wpa3_enhanced_sta_data(vap_index);
         }
     }
@@ -469,7 +469,9 @@ int interop_reassoc_frame_data(frame_data_t *msg) {
        // wifi_util_dbg_print(WIFI_MON, "%s:%d interopctrl is disabled, ipstat:%d ipenable:%d \r\n", __func__, __LINE__,ipstat,ipenable);
         return RETURN_OK;
     }
-    if (!isVapPrivate(msg->frame.ap_index) && !(isVapHotspotSecure5g(msg->frame.ap_index) || isVapHotspotSecure6g(msg->frame.ap_index) || isVapHotspotOpen5g(msg->frame.ap_index) || isVapHotspotOpen6g(msg->frame.ap_index))){
+    if (!isVapPrivateNetwork(msg->frame.ap_index) &&
+        !(isVapHotspotSecure5g(msg->frame.ap_index) || isVapHotspotSecure6g(msg->frame.ap_index) ||
+            isVapHotspotOpen5g(msg->frame.ap_index) || isVapHotspotOpen6g(msg->frame.ap_index))) {
         //wifi_util_dbg_print(WIFI_MON, "%s:%d It's not a private vap or hotspot vap \r\n", __func__, __LINE__);
         return RETURN_OK;
     }
@@ -528,7 +530,9 @@ int interop_assoc_frame_data(frame_data_t *msg) {
        // wifi_util_dbg_print(WIFI_MON, "%s:%d interopctrl is disabled, ipstat:%d ipenable:%d \r\n", __func__, __LINE__,ipstat,ipenable);
         return RETURN_OK;
     }
-    if (!isVapPrivate(msg->frame.ap_index) && !(isVapHotspotSecure5g(msg->frame.ap_index) || isVapHotspotSecure6g(msg->frame.ap_index) || isVapHotspotOpen5g(msg->frame.ap_index) || isVapHotspotOpen6g(msg->frame.ap_index))){
+    if (!isVapPrivateNetwork(msg->frame.ap_index) &&
+        !(isVapHotspotSecure5g(msg->frame.ap_index) || isVapHotspotSecure6g(msg->frame.ap_index) ||
+            isVapHotspotOpen5g(msg->frame.ap_index) || isVapHotspotOpen6g(msg->frame.ap_index))) {
         //wifi_util_dbg_print(WIFI_MON, "%s:%d It's not a private vap or hotspot vap \r\n", __func__, __LINE__);
         return RETURN_OK;
     }
@@ -588,7 +592,9 @@ int set_auth_req_frame_data(frame_data_t *msg) {
        // wifi_util_dbg_print(WIFI_MON, "%s:%d interopctrl is disabled, ipstat:%d ipenable:%d \r\n", __func__, __LINE__,ipstat,ipenable);
         return RETURN_OK;
     }
-    if (!isVapPrivate(msg->frame.ap_index) && !(isVapHotspotSecure5g(msg->frame.ap_index) || isVapHotspotSecure6g(msg->frame.ap_index) || isVapHotspotOpen5g(msg->frame.ap_index) || isVapHotspotOpen6g(msg->frame.ap_index))){
+    if (!isVapPrivateNetwork(msg->frame.ap_index) &&
+        !(isVapHotspotSecure5g(msg->frame.ap_index) || isVapHotspotSecure6g(msg->frame.ap_index) ||
+            isVapHotspotOpen5g(msg->frame.ap_index) || isVapHotspotOpen6g(msg->frame.ap_index))) {
         //wifi_util_dbg_print(WIFI_MON, "%s:%d It's not a private vap or hotspot vap \r\n", __func__, __LINE__);
         return RETURN_OK;
     }
@@ -956,13 +962,13 @@ void telemetry_event_code_count(interop_data_t *sta1, int vapindex, char *mac, c
     }
 	wifi_util_info_print(WIFI_MON, "%s:%d station found for mac :%s vap index:%d ,rssi:%d, noise:%d snr:%d channel_util:%d \n", __func__, __LINE__, mac, vapindex, sta1->rssi, sta1->noise_floor, sta1->snr, sta1->channel_util);
 	wifi_util_dbg_print(WIFI_MON, "%s:%d station found for mac :%s vap index:%d , eapol_msg_type:%d, eapol_frame_type:%d eapol_0:%d eapol_1:%d eapol_2:%d eapol_3:%d eapol_4:%d eapol_5:%d \n", __func__, __LINE__, mac, vapindex, sta1->eapol_msg_type, sta1->eapol_frame_type, sta1->eapol_status_type_counts[0], sta1->eapol_status_type_counts[1], sta1->eapol_status_type_counts[2], sta1->eapol_status_type_counts[3], sta1->eapol_status_type_counts[4], sta1->eapol_status_type_counts[5]);
-	if (xfi_enable && (isVapHotspot(vapindex))) {
-        wifi_util_info_print(WIFI_MON, "xfi_enable_rfc is enabled\n");
-        telemetry_event_access_accept_count(sta1, vapindex, mac, ap);
-        telemetry_event_eap_success_count(sta1, vapindex, mac, ap);
-        telemetry_event_eap_failure_count(sta1, vapindex, mac, ap);
-	}
-	telemetry_event_eap_reason_count(sta1, vapindex, mac, ap);
+        if (xfi_enable && ((isVapHotspot(vapindex) && !isVapRepurposeTarget(vapindex)))) {
+            wifi_util_info_print(WIFI_MON, "xfi_enable_rfc is enabled\n");
+            telemetry_event_access_accept_count(sta1, vapindex, mac, ap);
+            telemetry_event_eap_success_count(sta1, vapindex, mac, ap);
+            telemetry_event_eap_failure_count(sta1, vapindex, mac, ap);
+        }
+        telemetry_event_eap_reason_count(sta1, vapindex, mac, ap);
 	telemetry_event_eap_ap_reason_count(sta1, vapindex, mac, ap);
 	telemetry_event_handshake_count(sta1, vapindex, mac, ap);
     telemetry_event_interop_extra_details(sta1, vapindex, mac, ap);
@@ -1016,9 +1022,11 @@ void update_interop_sta_all_vap_data_entry(void) {
     wifi_mgr_t *mgr = get_wifimgr_obj();
     for (index = 0; index < getTotalNumberVAPs(); index++) {
         vap_index = VAP_INDEX(mgr->hal_cap, index);
-	if (isVapPrivate(vap_index) || isVapHotspotSecure5g(vap_index) || isVapHotspotSecure6g(vap_index) || isVapHotspotOpen5g(vap_index) || isVapHotspotOpen6g(vap_index)) {
+        if (isVapPrivateNetwork(vap_index) || isVapHotspotSecure5g(vap_index) ||
+            isVapHotspotSecure6g(vap_index) || isVapHotspotOpen5g(vap_index) ||
+            isVapHotspotOpen6g(vap_index)) {
             update_interop_sta_data(vap_index);
-	}
+        }
     }
 }
 
@@ -2009,14 +2017,16 @@ void process_deauthenticate	(unsigned int ap_index, auth_deauth_dev_t *dev)
     sta_key_t sta_key;
     wifi_util_info_print(WIFI_MON, "%s:%d Device:%s deauthenticated on ap:%d with reason : %d\n", __func__, __LINE__, to_sta_key(dev->sta_mac, sta_key), ap_index, dev->reason);
     /*Wrong password on private, Xfinity Home and LNF SSIDs*/
-    if ((dev->reason == 2) && ( isVapPrivate(ap_index) || isVapXhs(ap_index) || isVapLnfPsk(ap_index) ) ) {
+    if ((dev->reason == 2) &&
+        (isVapPrivateNetwork(ap_index) || isVapXhs(ap_index) || isVapLnfPsk(ap_index))) {
         get_formatted_time(tmp);
         snprintf(buff, 2048, "%s WIFI_PASSWORD_FAIL:%d,%s\n", tmp, ap_index + 1, to_sta_key(dev->sta_mac, sta_key));
         /* send telemetry of password failure */
         write_to_file(wifi_health_log, buff);
     }
     /*ARRISXB6-11979 Possible Wrong WPS key on private SSIDs*/
-    if ((dev->reason == 2 || dev->reason == 14 || dev->reason == 19) && ( isVapPrivate(ap_index) ))  {
+    if ((dev->reason == 2 || dev->reason == 14 || dev->reason == 19) &&
+        (isVapPrivateNetwork(ap_index))) {
         get_formatted_time(tmp);
         snprintf(buff, 2048, "%s WIFI_POSSIBLE_WPS_PSK_FAIL:%d,%s,%d\n", tmp, ap_index + 1, to_sta_key(dev->sta_mac, sta_key), dev->reason);
         /* send telemetry of WPS failure */
@@ -4700,7 +4710,9 @@ static void get_interop_client_assoc_frame(int ap_index, wifi_associated_dev_t *
 {
     interop_data_t *sta;
     char mac_addr[MAC_STR_LEN];
-    if (!isVapPrivate(ap_index) && !(isVapHotspotSecure5g(ap_index) || isVapHotspotSecure6g(ap_index) || isVapHotspotOpen5g(ap_index) || isVapHotspotOpen6g(ap_index))){
+    if (!isVapPrivateNetwork(ap_index) &&
+        !(isVapHotspotSecure5g(ap_index) || isVapHotspotSecure6g(ap_index) ||
+            isVapHotspotOpen5g(ap_index) || isVapHotspotOpen6g(ap_index))) {
         wifi_util_dbg_print(WIFI_MON, "%s:%d It's not a private vap or hotspot vap \r\n", __func__, __LINE__);
         return;
     }
@@ -5031,7 +5043,9 @@ int init_wifi_monitor()
     for (i = 0; i < getTotalNumberVAPs(); i++) {
         UINT vap_index = VAP_INDEX(mgr->hal_cap, i);
         wifi_util_dbg_print(WIFI_MON, "%s: incoming vapIndex:%d \n", __FUNCTION__, vap_index);
-        if (!(isVapPrivate(vap_index) || isVapHotspotSecure5g(vap_index) || isVapHotspotSecure6g(vap_index) || isVapHotspotOpen5g(vap_index) || isVapHotspotOpen6g(vap_index))) {
+        if (!(isVapPrivateNetwork(vap_index) || isVapHotspotSecure5g(vap_index) ||
+                isVapHotspotSecure6g(vap_index) || isVapHotspotOpen5g(vap_index) ||
+                isVapHotspotOpen6g(vap_index))) {
             continue;
         }
         wifi_util_dbg_print(WIFI_MON, "%s: creating hashmap for vapIndex:%d \n", __FUNCTION__, vap_index);
@@ -5244,7 +5258,9 @@ void deinit_wifi_monitor()
 
     for (i = 0; i < getTotalNumberVAPs(); i++) {
         UINT vap_index = VAP_INDEX(mgr->hal_cap, i);
-        if (!(isVapPrivate(vap_index) || isVapHotspotSecure5g(vap_index) || isVapHotspotSecure6g(vap_index) || isVapHotspotOpen5g(vap_index) || isVapHotspotOpen6g(vap_index))) {
+        if (!(isVapPrivateNetwork(vap_index) || isVapHotspotSecure5g(vap_index) ||
+                isVapHotspotSecure6g(vap_index) || isVapHotspotOpen5g(vap_index) ||
+                isVapHotspotOpen6g(vap_index))) {
             continue;
         }
         if(g_monitor_module.bssid_data[i].interop_sta_map != NULL) {

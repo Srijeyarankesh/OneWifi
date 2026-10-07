@@ -377,6 +377,18 @@ UINT getPrivateApFromRadioIndex(UINT radioIndex);
 UINT getApFromRadioIndex(UINT radioIndex, char* vap_prefix);
 CHAR* getVAPName(UINT apIndex);
 BOOL isVapPrivate(UINT apIndex);
+bool isVapRepurposeTarget(unsigned int vap_index);
+bool isVapRepurposed(unsigned int vap_index);
+bool isVapPrivateNetwork(unsigned int vap_index);
+int webconfig_set_repurposed_vap(wifi_ctrl_t *ctrl, bool enable);
+int webconfig_reapply_repurposed_vap(wifi_ctrl_t *ctrl);
+int webconfig_hal_private_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data);
+int publish_repurposed_vap_status(bool enabled);
+int project_repurposed_vap_for_external(webconfig_subdoc_decoded_data_t *data);
+int update_repurposed_vap_acl(unsigned int vap_index, bool active);
+int get_repurposed_vap_dormant_config(unsigned int vap_index, wifi_vap_info_t *vap,
+    rdk_wifi_vap_info_t *rdk);
+
 BOOL isVapXhs(UINT apIndex);
 BOOL isVapHotspot(UINT apIndex);
 BOOL isVapHotspotOpen(UINT apIndex);

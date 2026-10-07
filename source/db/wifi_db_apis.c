@@ -56,6 +56,20 @@
 #include "wifi_monitor.h"
 #include "run_qmgr.h"
 
+/* The reserved 2.4 GHz interface is reconstructed from private configuration.
+ * Do not persist it, or let a historical hotspot row replace its runtime cache. */
+static bool wifidb_is_repurposed_target(char *vap_name)
+{
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+    int vap_index;
+
+    if (mgr == NULL || vap_name == NULL) {
+        return false;
+    }
+    vap_index = convert_vap_name_to_index(&mgr->hal_cap.wifi_prop, vap_name);
+    return vap_index >= 0 && isVapRepurposeTarget((unsigned int)vap_index);
+}
+
 #define MAX_BUF_SIZE 128
 #define ONEWIFI_DB_VERSION_EXISTS_FLAG 100017
 #define ONEWIFI_DB_OLD_VERSION_FILE "/tmp/wifi_db_old_version"
@@ -280,6 +294,7 @@ void callback_Wifi_Rfc_Config(ovsdb_update_monitor_t *mon, struct schema_Wifi_Rf
         rfc_param->tcm_secure_5g_rfc = new_rec->tcm_secure_5g_rfc;
         rfc_param->tcm_secure_6g_rfc = new_rec->tcm_secure_6g_rfc;
         rfc_param->wpa3_compatibility_enable = new_rec->wpa3_compatibility_enable;
+        rfc_param->repurposed_vap_enable = new_rec->repurposed_vap_enable;
         rfc_param->csi_analytics_enabled_rfc = new_rec->csi_analytics_enabled_rfc;
         rfc_param->xfi_tel_enable_rfc = new_rec->xfi_tel_enable_rfc;
         rfc_param->multiap_rfc = new_rec->multiap_rfc;
@@ -769,6 +784,11 @@ void callback_Wifi_Security_Config(ovsdb_update_monitor_t *mon,
         struct schema_Wifi_Security_Config *old_rec,
         struct schema_Wifi_Security_Config *new_rec)
 {
+    if ((new_rec != NULL && wifidb_is_repurposed_target(new_rec->vap_name)) ||
+        (old_rec != NULL && wifidb_is_repurposed_target(old_rec->vap_name))) {
+        return;
+    }
+
     int i = 0;
     wifi_mgr_t *g_wifidb;
     g_wifidb = get_wifimgr_obj();
@@ -957,6 +977,11 @@ void callback_Wifi_Interworking_Config(ovsdb_update_monitor_t *mon,
         struct schema_Wifi_Interworking_Config *old_rec,
         struct schema_Wifi_Interworking_Config *new_rec)
 {
+    if ((new_rec != NULL && wifidb_is_repurposed_target(new_rec->vap_name)) ||
+        (old_rec != NULL && wifidb_is_repurposed_target(old_rec->vap_name))) {
+        return;
+    }
+
     int i = 0;
     int vap_index = 0;
     wifi_mgr_t *g_wifidb;
@@ -1062,6 +1087,11 @@ void callback_Wifi_VAP_Config(ovsdb_update_monitor_t *mon,
         struct schema_Wifi_VAP_Config *old_rec,
         struct schema_Wifi_VAP_Config *new_rec)
 {
+    if ((new_rec != NULL && wifidb_is_repurposed_target(new_rec->vap_name)) ||
+        (old_rec != NULL && wifidb_is_repurposed_target(old_rec->vap_name))) {
+        return;
+    }
+
     int radio_index = 0;
     int vap_index = 0;
     wifi_mgr_t *g_wifidb = get_wifimgr_obj();
@@ -1572,6 +1602,11 @@ void callback_Wifi_Passpoint_Config(ovsdb_update_monitor_t *mon,
         struct schema_Wifi_Passpoint_Config *old_rec,
         struct schema_Wifi_Passpoint_Config *new_rec)
 {
+    if ((new_rec != NULL && wifidb_is_repurposed_target(new_rec->vap_name)) ||
+        (old_rec != NULL && wifidb_is_repurposed_target(old_rec->vap_name))) {
+        return;
+    }
+
     wifi_util_dbg_print(WIFI_DB,"%s:%d: Enter\n", __func__, __LINE__);
     wifi_mgr_t *g_wifidb = get_wifimgr_obj();
 
@@ -1634,6 +1669,11 @@ void callback_Wifi_Anqp_Config(ovsdb_update_monitor_t *mon,
         struct schema_Wifi_Anqp_Config *old_rec,
         struct schema_Wifi_Anqp_Config *new_rec)
 {
+    if ((new_rec != NULL && wifidb_is_repurposed_target(new_rec->vap_name)) ||
+        (old_rec != NULL && wifidb_is_repurposed_target(old_rec->vap_name))) {
+        return;
+    }
+
     wifi_util_dbg_print(WIFI_DB,"%s:%d: Enter\n", __func__, __LINE__);
     if(mon == NULL) {
        wifi_util_dbg_print(WIFI_DB,"%s:%d: NULL mon, Unable to proceed\n", __func__, __LINE__);
@@ -1721,6 +1761,11 @@ void callback_Wifi_Preassoc_Control_Config(ovsdb_update_monitor_t *mon,
         struct schema_Wifi_Preassoc_Control_Config *old_rec,
         struct schema_Wifi_Preassoc_Control_Config *new_rec)
 {
+    if ((new_rec != NULL && wifidb_is_repurposed_target(new_rec->vap_name)) ||
+        (old_rec != NULL && wifidb_is_repurposed_target(old_rec->vap_name))) {
+        return;
+    }
+
     int i = 0;
     int vap_index = 0;
     wifi_mgr_t *g_wifidb;
@@ -1823,6 +1868,11 @@ void callback_Wifi_Postassoc_Control_Config(ovsdb_update_monitor_t *mon,
         struct schema_Wifi_Postassoc_Control_Config *old_rec,
         struct schema_Wifi_Postassoc_Control_Config *new_rec)
 {
+    if ((new_rec != NULL && wifidb_is_repurposed_target(new_rec->vap_name)) ||
+        (old_rec != NULL && wifidb_is_repurposed_target(old_rec->vap_name))) {
+        return;
+    }
+
     int i = 0;
     int vap_index = 0;
     wifi_mgr_t *g_wifidb;
@@ -1909,6 +1959,10 @@ void callback_Wifi_Postassoc_Control_Config(ovsdb_update_monitor_t *mon,
 **************************************************************************************/
 int wifidb_update_interworking_config(char *vap_name, wifi_InterworkingElement_t *interworking)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_Interworking_Config cfg, *pcfg;
 
     json_t *where;
@@ -1970,6 +2024,18 @@ int wifidb_update_interworking_config(char *vap_name, wifi_InterworkingElement_t
 **************************************************************************************/
 int wifidb_get_interworking_config(char *vap_name, wifi_InterworkingElement_t *interworking)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        int index = convert_vap_name_to_index(&get_wifimgr_obj()->hal_cap.wifi_prop, vap_name);
+        wifi_vap_info_t *cached = get_wifidb_vap_parameters(index);
+
+        if (interworking == NULL || cached == NULL) {
+            return RETURN_ERR;
+        }
+        /* The boot loader may already hold data_cache_lock. */
+        *interworking = cached->u.bss_info.interworking.interworking;
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_Interworking_Config  *pcfg;
     json_t *where;
     int count;
@@ -2115,6 +2181,7 @@ int wifidb_get_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_info)
     rfc_info->tcm_secure_5g_rfc = pcfg->tcm_secure_5g_rfc;
     rfc_info->tcm_secure_6g_rfc = pcfg->tcm_secure_6g_rfc;
     rfc_info->wpa3_compatibility_enable = pcfg->wpa3_compatibility_enable;
+    rfc_info->repurposed_vap_enable = pcfg->repurposed_vap_enable;
     rfc_info->csi_analytics_enabled_rfc = pcfg->csi_analytics_enabled_rfc;
     rfc_info->xfi_tel_enable_rfc = pcfg->xfi_tel_enable_rfc;
     rfc_info->multiap_rfc = pcfg->multiap_rfc;
@@ -2525,6 +2592,9 @@ int wifidb_get_wifi_vap_config(int radio_index, wifi_vap_info_map_t *config,
         {
 
             strncpy(vap_name,(pcfg+i)->vap_name,sizeof(vap_name));
+            if (wifidb_is_repurposed_target(vap_name)) {
+                continue;
+            }
             vap_index = convert_vap_name_to_array_index(&((wifi_mgr_t*)get_wifimgr_obj())->hal_cap.wifi_prop, vap_name);
             if(vap_index == -1)
             {
@@ -2632,6 +2702,18 @@ int wifidb_update_wifi_vap_config(int radio_index, wifi_vap_info_map_t *config,
 **************************************************************************************/
 int wifidb_get_wifi_security_config(char *vap_name, wifi_vap_security_t *sec)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        int index = convert_vap_name_to_index(&get_wifimgr_obj()->hal_cap.wifi_prop, vap_name);
+        wifi_vap_info_t *cached = get_wifidb_vap_parameters(index);
+
+        if (sec == NULL || cached == NULL) {
+            return RETURN_ERR;
+        }
+        /* The boot loader may already hold data_cache_lock. */
+        *sec = cached->u.bss_info.security;
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_Security_Config  *pcfg;
     json_t *where;
     int count;
@@ -2784,6 +2866,10 @@ int wifidb_get_wifi_security_config(char *vap_name, wifi_vap_security_t *sec)
 **************************************************************************************/
 int wifidb_update_wifi_interworking_config(char *vap_name, wifi_InterworkingElement_t *config)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_Interworking_Config cfg_interworking;
     char *filter_vapinterworking[] = {"-",NULL};
     wifi_db_t *g_wifidb;
@@ -2814,6 +2900,7 @@ int wifidb_update_wifi_interworking_config(char *vap_name, wifi_InterworkingElem
     if(onewifi_ovsdb_table_upsert_with_parent(g_wifidb->wifidb_sock_path,&table_Wifi_Interworking_Config,&cfg_interworking,false,filter_vapinterworking,SCHEMA_TABLE(Wifi_VAP_Config),onewifi_ovsdb_where_simple(SCHEMA_COLUMN(Wifi_VAP_Config,vap_name),vap_name),SCHEMA_COLUMN(Wifi_VAP_Config,interworking)) == false)
     {
         wifidb_print("%s:%d WIFI DB update error !!!. Failed to update Wifi Interworking Config table\n",__func__, __LINE__);
+        return RETURN_ERR;
     }
     else
     {
@@ -2889,6 +2976,11 @@ void wifidb_get_wifi_macfilter_config()
         tmp = strdup(pcfg->macfilter_key);
         if (tmp != NULL) {
             tmp_vap_name = strtok_r(tmp, delim, &ptr_t);
+            if (wifidb_is_repurposed_target(tmp_vap_name)) {
+                pcfg++;
+                free(tmp);
+                continue;
+            }
             vap_index = convert_vap_name_to_index(&((wifi_mgr_t*) get_wifimgr_obj())->hal_cap.wifi_prop, tmp_vap_name);
             if (vap_index == -1) {
                 wifi_util_dbg_print(WIFI_DB,"%s:%d: Unable to find vap_index for vap_name %s\n", __func__, __LINE__, tmp_vap_name);
@@ -2962,6 +3054,10 @@ void wifidb_get_wifi_macfilter_config()
 int wifidb_update_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
     rdk_wifi_vap_info_t *rdk_config)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_VAP_Config cfg;
     char *filter_vap[] = {"-",SCHEMA_COLUMN(Wifi_VAP_Config,security),SCHEMA_COLUMN(Wifi_VAP_Config,interworking),SCHEMA_COLUMN(Wifi_VAP_Config,mac_filter),NULL};
     wifi_db_t *g_wifidb;
@@ -3093,6 +3189,7 @@ int wifidb_update_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
     if(onewifi_ovsdb_table_upsert_with_parent(g_wifidb->wifidb_sock_path,&table_Wifi_VAP_Config,&cfg,false,filter_vap,SCHEMA_TABLE(Wifi_Radio_Config),(onewifi_ovsdb_where_simple(SCHEMA_COLUMN(Wifi_Radio_Config,radio_name),radio_name)),SCHEMA_COLUMN(Wifi_Radio_Config,vap_configs)) == false)
     {
       wifidb_print("%s:%d WIFI DB update error !!!. Failed to update table_Wifi_VAP_Config table\n",__func__, __LINE__);
+      return RETURN_ERR;
     }
     else
     {
@@ -3117,6 +3214,10 @@ int wifidb_update_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
 **************************************************************************************/
 int wifidb_update_preassoc_ctrl_config(char *vap_name, wifi_preassoc_control_t *preassoc)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_Preassoc_Control_Config cfg;
     char *filter_preassoc[] = {"-", NULL};
     wifi_db_t *g_wifidb;
@@ -3163,6 +3264,18 @@ int wifidb_update_preassoc_ctrl_config(char *vap_name, wifi_preassoc_control_t *
 **************************************************************************************/
 int wifidb_get_preassoc_ctrl_config(char *vap_name, wifi_preassoc_control_t *preassoc)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        int index = convert_vap_name_to_index(&get_wifimgr_obj()->hal_cap.wifi_prop, vap_name);
+        wifi_vap_info_t *cached = get_wifidb_vap_parameters(index);
+
+        if (preassoc == NULL || cached == NULL) {
+            return RETURN_ERR;
+        }
+        /* The boot loader may already hold data_cache_lock. */
+        *preassoc = cached->u.bss_info.preassoc;
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_Preassoc_Control_Config  *pcfg;
     json_t *where;
     int count;
@@ -3203,6 +3316,10 @@ int wifidb_get_preassoc_ctrl_config(char *vap_name, wifi_preassoc_control_t *pre
 **************************************************************************************/
 int wifidb_update_postassoc_ctrl_config(char *vap_name, wifi_postassoc_control_t *postassoc)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_Postassoc_Control_Config cfg;
     char *filter_postassoc[] = {"-", NULL};
     wifi_db_t *g_wifidb;
@@ -3242,6 +3359,18 @@ int wifidb_update_postassoc_ctrl_config(char *vap_name, wifi_postassoc_control_t
 **************************************************************************************/
 int wifidb_get_postassoc_ctrl_config(char *vap_name, wifi_postassoc_control_t *postassoc)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        int index = convert_vap_name_to_index(&get_wifimgr_obj()->hal_cap.wifi_prop, vap_name);
+        wifi_vap_info_t *cached = get_wifidb_vap_parameters(index);
+
+        if (postassoc == NULL || cached == NULL) {
+            return RETURN_ERR;
+        }
+        /* The boot loader may already hold data_cache_lock. */
+        *postassoc = cached->u.bss_info.postassoc;
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_Postassoc_Control_Config  *pcfg;
     json_t *where;
     int count;
@@ -3292,6 +3421,9 @@ int wifidb_update_wifi_cac_config(wifi_vap_info_map_t *config)
 
         vap_index = convert_vap_name_to_index(&((wifi_mgr_t*) get_wifimgr_obj())->hal_cap.wifi_prop, config->vap_array[i].vap_name);
 
+        if (isVapRepurposeTarget(vap_index)) {
+            continue;
+        }
         if ((int)vap_index < 0 || !isVapHotspot(vap_index)) {
             wifi_util_error_print(WIFI_DB,"%s:%d: %s invalid vap name \n",__func__, __LINE__,config->vap_array[i].vap_name);
             continue;
@@ -5000,6 +5132,7 @@ void wifidb_init_rfc_config_default(wifi_rfc_dml_parameters_t *config)
     rfc_config.tcm_secure_5g_rfc = false;
     rfc_config.tcm_secure_6g_rfc = false;
     rfc_config.wpa3_compatibility_enable = false;
+    rfc_config.repurposed_vap_enable = false;
     rfc_config.csi_analytics_enabled_rfc = false;
     rfc_config.xfi_tel_enable_rfc = false;
     rfc_config.multiap_rfc = false;
@@ -6493,6 +6626,7 @@ int wifidb_update_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_param)
         return -1;
     }
 
+    memset(&cfg, 0, sizeof(cfg));
     sprintf(index,"%d",rfc_id);
     where = onewifi_ovsdb_tran_cond(OCLM_STR, "rfc_id", OFUNC_EQ, index);
     pcfg = onewifi_ovsdb_table_select_where(g_wifidb->wifidb_sock_path, &table_Wifi_Rfc_Config, where, &count);
@@ -6527,6 +6661,7 @@ int wifidb_update_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_param)
     cfg.tcm_secure_5g_rfc = rfc_param->tcm_secure_5g_rfc;
     cfg.tcm_secure_6g_rfc = rfc_param->tcm_secure_6g_rfc;
     cfg.wpa3_compatibility_enable = rfc_param->wpa3_compatibility_enable;
+    cfg.repurposed_vap_enable = rfc_param->repurposed_vap_enable;
     cfg.csi_analytics_enabled_rfc = rfc_param->csi_analytics_enabled_rfc;
     cfg.xfi_tel_enable_rfc = rfc_param->xfi_tel_enable_rfc;
     cfg.multiap_rfc = rfc_param->multiap_rfc;
@@ -6802,6 +6937,20 @@ int wifidb_get_gas_config(UINT advertisement_id, wifi_GASConfiguration_t *gas_in
 int wifidb_get_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
     rdk_wifi_vap_info_t *rdk_config)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        int index = convert_vap_name_to_index(&get_wifimgr_obj()->hal_cap.wifi_prop, vap_name);
+        wifi_vap_info_t *cached = get_wifidb_vap_parameters(index);
+        rdk_wifi_vap_info_t *cached_rdk = get_wifidb_rdk_vap_info(index);
+
+        if (config == NULL || rdk_config == NULL || cached == NULL || cached_rdk == NULL) {
+            return RETURN_ERR;
+        }
+        /* These accessors also serve boot callers holding data_cache_lock. */
+        *config = *cached;
+        *rdk_config = *cached_rdk;
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_VAP_Config *pcfg;
     json_t *where;
     int count = 0;
@@ -6962,6 +7111,13 @@ int wifidb_get_wifi_vap_info(char *vap_name, wifi_vap_info_t *config,
 
 int wifidb_get_wifi_security_config_old_mode(char *vap_name, int vap_index)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        int index = convert_vap_name_to_index(&get_wifimgr_obj()->hal_cap.wifi_prop, vap_name);
+        wifi_vap_info_t *cached = get_wifidb_vap_parameters(index);
+
+        return cached == NULL ? RETURN_ERR : (int)cached->u.bss_info.security.mode;
+    }
+
     struct schema_Wifi_Security_Config  *pcfg;
     json_t *where;
     wifi_db_t *g_wifidb;
@@ -6999,6 +7155,10 @@ int wifidb_get_wifi_security_config_old_mode(char *vap_name, int vap_index)
 **************************************************************************************/
 int wifidb_update_wifi_security_config(char *vap_name, wifi_vap_security_t *sec)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_Security_Config cfg_sec;
     char *filter_vapsec[] = {"-",NULL};
     char address[BUFFER_LENGTH_WIFIDB] = {0};
@@ -7098,6 +7258,7 @@ int wifidb_update_wifi_security_config(char *vap_name, wifi_vap_security_t *sec)
     if(onewifi_ovsdb_table_upsert_with_parent(g_wifidb->wifidb_sock_path,&table_Wifi_Security_Config,&cfg_sec,false,filter_vapsec,SCHEMA_TABLE(Wifi_VAP_Config),onewifi_ovsdb_where_simple(SCHEMA_COLUMN(Wifi_VAP_Config,vap_name),vap_name),SCHEMA_COLUMN(Wifi_VAP_Config,security)) == false)
     {
         wifidb_print("%s:%d WIFI DB update error !!!. Failed to update Wifi Security Config table\n",__func__, __LINE__);
+        return RETURN_ERR;
     }
     else
     {
@@ -7145,6 +7306,9 @@ int wifidb_update_wifi_macfilter_config(char *macfilter_key, acl_entry_t *config
     snprintf(buff,sizeof(buff),"%s",macfilter_key);
   
     vap_name = strtok_r(buff,"-",&saveptr);
+    if (wifidb_is_repurposed_target(vap_name)) {
+        return RETURN_OK;
+    }
     if (!add) {
         where = onewifi_ovsdb_tran_cond(OCLM_STR, "macfilter_key", OFUNC_EQ, macfilter_key);
         ret = onewifi_ovsdb_table_delete_where(g_wifidb->wifidb_sock_path, &table_Wifi_MacFilter_Config, where);
@@ -7234,6 +7398,10 @@ int wifidb_update_wifi_macfilter_config(char *macfilter_key, acl_entry_t *config
 **************************************************************************************/
 int wifidb_update_wifi_passpoint_config(char *vap_name, wifi_interworking_t *config)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_Passpoint_Config cfg_passpoint;
 //     char *filter_passpoint[] = {"-",NULL};
     wifi_db_t *g_wifidb;
@@ -7315,6 +7483,10 @@ int wifidb_update_wifi_passpoint_config(char *vap_name, wifi_interworking_t *con
 **************************************************************************************/
 int wifidb_update_wifi_anqp_config(char *vap_name, wifi_interworking_t *config)
 {
+    if (wifidb_is_repurposed_target(vap_name)) {
+        return RETURN_OK;
+    }
+
     struct schema_Wifi_Anqp_Config cfg_anqp;
 //    char *filter_anqp[] = {"-",NULL};
     wifi_db_t *g_wifidb;

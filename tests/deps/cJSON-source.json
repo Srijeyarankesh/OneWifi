@@ -1,0 +1,25 @@
+{
+  "name": "cJSON",
+  "version": "1.7.18",
+  "source": "https://github.com/DaveGamble/cJSON/tree/v1.7.18",
+  "license": "MIT",
+  "files": {
+    "cJSON.c": {
+      "url": "https://raw.githubusercontent.com/DaveGamble/cJSON/v1.7.18/cJSON.c",
+      "upstream_sha256": "75c51de8fa40ac9d7a99319c6330719bd692eb81c0a869265f3d4c682533f9b9",
+      "local_sha256": "75c51de8fa40ac9d7a99319c6330719bd692eb81c0a869265f3d4c682533f9b9"
+    },
+    "cJSON.h": {
+      "url": "https://raw.githubusercontent.com/DaveGamble/cJSON/v1.7.18/cJSON.h",
+      "upstream_sha256": "0578cc29132912edbc88f83207a8fc76e5db3db0605497e909a9384ef3cc474b",
+      "local_sha256": "75c77675cb586dc1af8e34253c7e0a23dcd7a7c6d25415f2387273a00dc3570d",
+      "local_normalization": "Removed trailing horizontal whitespace; upstream code and comments otherwise unchanged."
+    },
+    "cJSON-LICENSE": {
+      "url": "https://raw.githubusercontent.com/DaveGamble/cJSON/v1.7.18/LICENSE",
+      "upstream_sha256": "a36dda207c36db5818729c54e7ad4e8b0c6fba847491ba64f372c1a2037b6d5c",
+      "local_sha256": "163766832b15cc9c90d593216360c67af579b8b36932b297fca2aeb61544de2f",
+      "local_normalization": "Removed blank line at end of file; MIT license text unchanged."
+    }
+  }
+}

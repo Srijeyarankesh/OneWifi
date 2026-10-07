@@ -31,7 +31,7 @@
 
 bool vap_svc_is_public(unsigned int vap_index)
 {
-    return isVapHotspot(vap_index) ? true : false;
+    return isVapHotspot(vap_index) && !isVapRepurposeTarget(vap_index);
 }
 
 int vap_svc_public_start(vap_svc_t *svc, unsigned int radio_index, wifi_vap_info_map_t *map)
@@ -77,6 +77,9 @@ void process_prefer_private_mac_filter(mac_address_t prefer_private_mac)
         for (itrj = 0; itrj < getMaxNumberVAPsPerRadio(itr); itrj++) {
 
             vap_index = wifi_vap_map->vap_array[itrj].vap_index;
+            if (isVapRepurposeTarget(vap_index)) {
+                continue;
+            }
             rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
 
             if (rdk_vap_info == NULL) {
@@ -141,7 +144,8 @@ int update_managementFramePower(void *arg) {
     for(itr = 0; itr < num_radios; itr++) {
         vap_info_map = get_wifidb_vap_map(itr);
         for(itrj = 0; itrj < getMaxNumberVAPsPerRadio(itr); itrj++) {
-            if(isVapHotspot(vap_info_map->vap_array[itrj].vap_index) && vap_info_map->vap_array[itrj].u.bss_info.enabled) {
+            if (vap_svc_is_public(vap_info_map->vap_array[itrj].vap_index) &&
+                vap_info_map->vap_array[itrj].u.bss_info.enabled) {
                 wifi_getApManagementFramePowerControl(vap_info_map->vap_array[itrj].vap_index, &output);
                 if(output == 0) {
                     wifi_util_info_print(WIFI_CTRL,"%s:%d setting mgmtPower:%d index:%d \n", __func__,__LINE__, vap_info_map->vap_array[itrj].u.bss_info.mgmtPowerControl, vap_info_map->vap_array[itrj].vap_index);
@@ -164,6 +168,13 @@ int vap_svc_public_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_inf
     bool rfc_passpoint_enable = false;
     wifi_ctrl_t *ctrl;
     wifi_mgr_t *mgr = (wifi_mgr_t *)get_wifimgr_obj();
+
+    /* Reject before making any partial public update to a reserved physical VAP. */
+    for (i = 0; i < map->num_vaps; i++) {
+        if (isVapRepurposeTarget(map->vap_array[i].vap_index)) {
+            return RETURN_ERR;
+        }
+    }
 
     ctrl = &mgr->ctrl;
 
@@ -299,6 +310,9 @@ int update_xfinity_acl_entries(char* tgt_vap_name)
         wifi_vap_map =(wifi_vap_info_map_t *) get_wifidb_vap_map(itr);
         for (itrj = 0; itrj < getMaxNumberVAPsPerRadio(itr); itrj++) {
             vap_index = wifi_vap_map->vap_array[itrj].vap_index;
+            if (isVapRepurposeTarget(vap_index)) {
+                continue;
+            }
             rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
 
             if (rdk_vap_info == NULL) {
@@ -346,6 +360,9 @@ void add_mac_mode_to_public_vaps(bool mac_mode)
         wifi_vap_map =(wifi_vap_info_map_t *) get_wifidb_vap_map(itr);
         for (itrj = 0; itrj < getMaxNumberVAPsPerRadio(itr); itrj++) {
             vap_index = wifi_vap_map->vap_array[itrj].vap_index;
+            if (isVapRepurposeTarget(vap_index)) {
+                continue;
+            }
             rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
 
             if (rdk_vap_info == NULL) {
@@ -392,6 +409,12 @@ void process_prefer_private_rfc_event(vap_svc_event_t event, void *data)
 void process_xfinity_enable(vap_svc_event_t event, void *data)
 {
     public_vaps_data_t *public = ((public_vaps_data_t *)data);
+    int vap_index = convert_vap_name_to_index(&get_wifimgr_obj()->hal_cap.wifi_prop,
+        public->vap_name);
+
+    if (vap_index >= 0 && isVapRepurposeTarget(vap_index)) {
+        return;
+    }
     wifi_util_dbg_print(WIFI_CTRL,"WIFI Enter RFC Func %s: %d : vap_name:%s:bool %d\n",__FUNCTION__,__LINE__,public->vap_name,public->enabled);
     wifi_rfc_dml_parameters_t *rfc_param = (wifi_rfc_dml_parameters_t *) get_wifi_db_rfc_parameters();
     if (strcmp(public->vap_name,"hotspot_open_2g") == 0)
@@ -435,7 +458,7 @@ void process_xfinity_rrm(vap_svc_event_t event)
             continue;
         }
         for(unsigned int j = 0; j < wifi_vap_map->num_vaps; ++j) {
-            if(strstr(wifi_vap_map->vap_array[j].vap_name, "hotspot") == NULL) {
+            if (!vap_svc_is_public(wifi_vap_map->vap_array[j].vap_index)) {
                 continue;
             }
             if ((strcmp(wifi_vap_map->vap_array[j].vap_name,"hotspot_open_2g") == 0) &&

@@ -369,6 +369,7 @@ webconfig_error_t       translate_from_null_subdoc(webconfig_t *config, webconfi
 
 // private
 webconfig_error_t       init_private_subdoc(webconfig_subdoc_t *doc);
+webconfig_error_t decode_repurposed_vap_config(const cJSON *json, bool *present, bool *enabled);
 webconfig_error_t       access_check_private_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data);
 webconfig_error_t       decode_private_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data);
 webconfig_error_t       encode_private_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data);

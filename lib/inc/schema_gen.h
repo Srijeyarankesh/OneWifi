@@ -213,6 +213,7 @@
         PJS_OVS_BOOL(tcm_secure_2g_rfc) \
         PJS_OVS_BOOL(tcm_secure_5g_rfc) \
         PJS_OVS_BOOL(tcm_secure_6g_rfc) \
+        PJS_OVS_BOOL(repurposed_vap_enable) \
         PJS_OVS_BOOL(wpa3_compatibility_enable) \
         PJS_OVS_BOOL(csi_analytics_enabled_rfc) \
         PJS_OVS_BOOL(xfi_tel_enable_rfc) \
@@ -2210,6 +2211,7 @@
     COLUMN(tcm_secure_2g_rfc) \
     COLUMN(tcm_secure_5g_rfc) \
     COLUMN(tcm_secure_6g_rfc) \
+    COLUMN(repurposed_vap_enable) \
     COLUMN(wpa3_compatibility_enable) \
     COLUMN(csi_analytics_enabled_rfc) \
     COLUMN(multiap_rfc) \
@@ -3623,6 +3625,7 @@
 #define SCHEMA__Wifi_Rfc_Config__tcm_secure_2g_rfc "tcm_secure_2g_rfc"
 #define SCHEMA__Wifi_Rfc_Config__tcm_secure_5g_rfc "tcm_secure_5g_rfc"
 #define SCHEMA__Wifi_Rfc_Config__tcm_secure_6g_rfc "tcm_secure_6g_rfc"
+#define SCHEMA__Wifi_Rfc_Config__repurposed_vap_enable "repurposed_vap_enable"
 #define SCHEMA__Wifi_Rfc_Config__wpa3_compatibility_enable "wpa3_compatibility_enable"
 #define SCHEMA__Wifi_Rfc_Config__csi_analytics_enabled_rfc "csi_analytics_enabled_rfc"
 #define SCHEMA__Wifi_Rfc_Config__multiap_rfc "multiap_rfc"

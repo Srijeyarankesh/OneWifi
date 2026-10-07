@@ -192,6 +192,8 @@ typedef enum {
     wifi_event_type_sm_app_enable,
     wifi_event_type_wei_rfc_config,
     wifi_event_type_send_btm_req,
+    wifi_event_type_repurposed_vap_rfc,
+    wifi_event_type_repurposed_vap_status,
     wifi_event_command_max,
 
     wifi_event_monitor_diagnostics = wifi_event_type_base

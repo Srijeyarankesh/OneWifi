@@ -1,6 +1,6 @@
 {
   "name": "Wifi_Rdk_Database",
-  "version": "1.00.055",
+  "version": "1.00.056",
   "cksum": "2353365742 523",
   "tables": {
     "Wifi_Device_Config": {
@@ -1894,6 +1894,13 @@
             "key": {
               "type": "boolean"
             },
+            "min": 0,
+            "max": 1
+          }
+        },
+        "repurposed_vap_enable": {
+          "type": {
+            "key": { "type": "boolean" },
             "min": 0,
             "max": 1
           }

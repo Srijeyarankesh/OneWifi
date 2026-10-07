@@ -661,7 +661,11 @@ typedef struct {
     int  wei_rfc_mask;
     bool xfi_tel_enable_rfc;
     bool multiap_rfc;
+    bool repurposed_vap_enable;
 } wifi_rfc_dml_parameters_t;
+
+#define WIFI_REPURPOSED_VAP_ENABLE "Device.WiFi.RepurposedVap.Enable"
+#define WIFI_REPURPOSED_VAP_STATUS "Device.WiFi.RepurposedVap.Status"
 
 typedef struct {
     bool notify_wifi_changes;

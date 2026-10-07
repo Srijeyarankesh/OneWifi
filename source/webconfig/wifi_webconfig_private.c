@@ -33,6 +33,43 @@ webconfig_subdoc_object_t   private_objects[3] = {
     { webconfig_subdoc_object_type_vaps, "WifiVapConfig" },
 };
 
+/* Optional request metadata. Keep it out of shared decoded-data structures. */
+webconfig_error_t decode_repurposed_vap_config(const cJSON *json, bool *present, bool *enabled)
+{
+    const cJSON *item, *config = NULL, *entry, *value;
+
+    if (!cJSON_IsObject(json) || present == NULL || enabled == NULL) {
+        return webconfig_error_invalid_subdoc;
+    }
+    *present = false;
+    *enabled = false;
+    cJSON_ArrayForEach(item, json) {
+        if (item->string != NULL && strcmp(item->string, "RepurposedVapConfig") == 0) {
+            if (config != NULL) {
+                return webconfig_error_invalid_subdoc;
+            }
+            config = item;
+        }
+    }
+    if (config == NULL) {
+        return webconfig_error_none;
+    }
+    if (!cJSON_IsArray(config) || cJSON_GetArraySize(config) != 1) {
+        return webconfig_error_invalid_subdoc;
+    }
+    entry = cJSON_GetArrayItem(config, 0);
+    if (!cJSON_IsObject(entry) || cJSON_GetArraySize(entry) != 1) {
+        return webconfig_error_invalid_subdoc;
+    }
+    value = cJSON_GetObjectItemCaseSensitive(entry, "Enabled");
+    if (!cJSON_IsBool(value)) {
+        return webconfig_error_invalid_subdoc;
+    }
+    *present = true;
+    *enabled = cJSON_IsTrue(value);
+    return webconfig_error_none;
+}
+
 webconfig_error_t init_private_subdoc(webconfig_subdoc_t *doc)
 {
     doc->num_objects = sizeof(private_objects)/sizeof(webconfig_subdoc_object_t);
@@ -178,6 +215,12 @@ webconfig_error_t decode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
 
     params = &data->u.decoded;
     doc = &config->subdocs[data->type];
+    bool repurposed_present, repurposed_enabled;
+    if (decode_repurposed_vap_config(json, &repurposed_present, &repurposed_enabled) !=
+        webconfig_error_none) {
+        cJSON_Delete(json);
+        return webconfig_error_invalid_subdoc;
+    }
     /* get list of private SSID */
     num_private_ssid = get_list_of_private_ssid(&params->hal_cap.wifi_prop, MAX_NUM_RADIOS, vap_names);
 
@@ -198,7 +241,6 @@ webconfig_error_t decode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
             wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: object:%s not present, validation failed\n",
                 __func__, __LINE__, doc->objects[i].name);
             cJSON_Delete(json);
-            wifi_util_error_print(WIFI_WEBCONFIG, "%s\n", (char *)data->u.encoded.raw);
             return webconfig_error_invalid_subdoc;
         }
     }
@@ -208,7 +250,6 @@ webconfig_error_t decode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
     if (cJSON_IsArray(obj_vaps) == false) {
         wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: vap object not present\n", __func__, __LINE__);
         cJSON_Delete(json);
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s\n", (char *)data->u.encoded.raw);
         return webconfig_error_invalid_subdoc;
     }
 
@@ -217,7 +258,6 @@ webconfig_error_t decode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
         wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: Not correct number of vap objects: %d, expected: %d\n",
             __func__, __LINE__, size, params->hal_cap.wifi_prop.numRadios);
         cJSON_Delete(json);
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s\n", (char *)data->u.encoded.raw);
         return webconfig_error_invalid_subdoc;
     }
 
@@ -228,7 +268,6 @@ webconfig_error_t decode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
         // check presence of all vap names
         if ((obj = cJSON_GetObjectItem(obj_vap, "VapName")) == NULL) {
             cJSON_Delete(json);
-            wifi_util_error_print(WIFI_WEBCONFIG, "%s\n", (char *)data->u.encoded.raw);
             return webconfig_error_invalid_subdoc;
         }
 
@@ -241,8 +280,8 @@ webconfig_error_t decode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
 //    if (presence_count < MIN_NUM_RADIOS || presence_count > MAX_NUM_RADIOS) {
     if (presence_count != num_private_ssid) {
         cJSON_Delete(json);
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: vap object not present\n", __func__, __LINE__);
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s\n", (char *)data->u.encoded.raw);
+        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: vap object not present\n", __func__,
+            __LINE__);
         return webconfig_error_invalid_subdoc;
     }
 
@@ -271,7 +310,6 @@ webconfig_error_t decode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
                 wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: VAP object validation failed\n",
                     __func__, __LINE__);
                 cJSON_Delete(json);
-                wifi_util_error_print(WIFI_WEBCONFIG, "%s\n", (char *)data->u.encoded.raw);
                 return webconfig_error_decode;
             }
         }

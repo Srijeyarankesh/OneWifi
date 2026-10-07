@@ -405,6 +405,11 @@ static void wifiapi_handle_set_btm_request(char **args, unsigned int num_args,
     }
 
     vap_index = atoi(args[1]);
+    if (isVapRepurposeTarget(vap_index)) {
+        snprintf(result_buf, result_buf_size, "Steering is disabled for the repurposed VAP\n");
+        free(btm_request);
+        return;
+    }
     str_to_mac_bytes(args[2], client_mac);
     str_to_mac_bytes(args[3], candidate_mac);
 
@@ -870,6 +875,13 @@ void process_wifiapi_command(char *command, unsigned int len)
             goto publish;
         }
         //call hal_api
+        for (i = 0; i < vap_map->num_vaps; i++) {
+            if (isVapRepurposeTarget(vap_map->vap_array[i].vap_index)) {
+                snprintf(buff, sizeof(buff),
+                    "%s: reserved VAP is controlled by private configuration", args[0]);
+                goto publish;
+            }
+        }
         if (wifi_hal_createVAP(radio_index, vap_map) != RETURN_OK) {
             snprintf(buff, sizeof(buff), "%s: wifi_hal_createVAP failed", args[0]);
             goto publish;

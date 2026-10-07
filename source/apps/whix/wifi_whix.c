@@ -378,8 +378,7 @@ int whix_upload_ap_telemetry_pmf()
     for(i = 0; i < (int)getTotalNumberVAPs(); i++)
     {
         vap_index = VAP_INDEX(mgr->hal_cap, i);
-        if (isVapPrivate(vap_index))
-        {
+        if (isVapPrivateNetwork(vap_index)) {
             wifi_vap_security_t *vapSecurity = (wifi_vap_security_t *)Get_wifi_object_bss_security_parameter(vap_index);
             if (vapSecurity != NULL) {
 
@@ -583,7 +582,7 @@ int upload_client_debug_stats_whix(int vap_index)
     vap_status = vap_info->u.bss_info.enabled;
 
     if (vap_status) {
-        if (isVapPrivate(vap_index)) {
+        if (isVapPrivateNetwork(vap_index)) {
             upload_client_debug_stats_chan_stats(vap_index);
             upload_client_debug_stats_transmit_power_stats(vap_index);
             upload_client_debug_stats_acs_stats(vap_index);
@@ -928,7 +927,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
         wifi_util_error_print(WIFI_CTRL, "%s:%d NULL rdk_vap_info pointer\n", __func__, __LINE__);
         return RETURN_ERR;
     }
-    if (strlen(vap_info->repurposed_vap_name) != 0) {
+    if (strlen(vap_info->repurposed_vap_name) != 0 && !isVapRepurposeTarget(vap_index)) {
         wifi_util_info_print(WIFI_APPS, "Managed wifi is enabled on the device\n");
         is_managed_wifi = true;
     }
@@ -1031,7 +1030,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
         for (itr = 1; itr < strlen(t_string); itr++) {
             t_string[itr] = toupper(t_string[itr]);
         }
-        if (isVapPrivate(vap_index)) {
+        if (isVapPrivateNetwork(vap_index)) {
             snprintf(eventName, sizeof(eventName), "%sclientMac_split", t_string);
             get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
         } else if (isVapXhs(vap_index)) {
@@ -1053,7 +1052,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
         //    "xh_cnt_1_split","content": "WIFI_MAC_3_TOTAL_COUNT:","type": "wifihealth.txt",
         //    "header": "xh_cnt_2_split","content": "WIFI_MAC_4_TOTAL_COUNT:","type":
         //    "wifihealth.txt",
-        if (isVapPrivate(vap_index)) {
+        if (isVapPrivateNetwork(vap_index)) {
             if (0 == active_num_dev) {
                 snprintf(eventName, sizeof(eventName), "WIFI_INFO_Zero_%s_Clients", t_string);
                 get_stubs_descriptor()->t2_event_d_fn(eventName, 1);
@@ -1094,7 +1093,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
     }
     strncat(buff, "\n", 2);
     write_to_file(wifi_health_log, buff);
-    if (isVapPrivate(vap_index)) {
+    if (isVapPrivateNetwork(vap_index)) {
         t_str = convert_radio_index_to_band_str_g(getRadioIndexFromAp(vap_index));
         if (t_str != NULL) {
             strncpy(t_string, t_str, sizeof(t_string) - 1);
@@ -1146,7 +1145,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
     }
     strncat(buff, "\n", 2);
     write_to_file(wifi_health_log, buff);
-    if (isVapPrivate(vap_index)) {
+    if (isVapPrivateNetwork(vap_index)) {
         snprintf(eventName, sizeof(eventName), "WIFI_CW_%d_split", vap_index + 1);
         get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
     } else if (isVapLnfPsk(vap_index) && is_managed_wifi) {
@@ -1182,7 +1181,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
         }
         strncat(buff, "\n", 2);
         write_to_file(wifi_health_log, buff);
-        if (isVapPrivate(vap_index)) {
+        if (isVapPrivateNetwork(vap_index)) {
             snprintf(eventName, sizeof(eventName), "WIFI_SNR_%d_split", vap_index + 1);
             get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
         } else if (isVapLnfPsk(vap_index) && is_managed_wifi) {
@@ -1204,7 +1203,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
     }
     strncat(buff, "\n", 2);
     write_to_file(wifi_health_log, buff);
-    if (isVapPrivate(vap_index)) {
+    if (isVapPrivateNetwork(vap_index)) {
         snprintf(eventName, sizeof(eventName), "WIFI_TX_%d_split", vap_index + 1);
         get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
     } else if (isVapLnfPsk(vap_index) && is_managed_wifi) {
@@ -1226,7 +1225,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
     strncat(buff, "\n", 2);
     write_to_file(wifi_health_log, buff);
     //  "header": "WIFI_RX_1_split", "content": "WIFI_RXCLIENTS_1:", "type": "wifihealth.txt",
-    if (isVapPrivate(vap_index)) {
+    if (isVapPrivateNetwork(vap_index)) {
         snprintf(eventName, sizeof(eventName), "WIFI_RX_%d_split", vap_index + 1);
         get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
     } else if (isVapLnfPsk(vap_index) && is_managed_wifi) {
@@ -1249,7 +1248,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
         }
         strncat(buff, "\n", 2);
         write_to_file(wifi_health_log, buff);
-        if (isVapPrivate(vap_index)) {
+        if (isVapPrivateNetwork(vap_index)) {
             snprintf(eventName, sizeof(eventName), "MAXTX_%d_split", vap_index + 1);
             get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
         } else if (isVapLnfPsk(vap_index) && is_managed_wifi) {
@@ -1272,7 +1271,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
         }
         strncat(buff, "\n", 2);
         write_to_file(wifi_health_log, buff);
-        if (isVapPrivate(vap_index)) {
+        if (isVapPrivateNetwork(vap_index)) {
             snprintf(eventName, sizeof(eventName), "MAXRX_%d_split", vap_index + 1);
             get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
         } else if (isVapLnfPsk(vap_index) && is_managed_wifi) {
@@ -1374,7 +1373,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
         }
         strncat(buff, "\n", 2);
         write_to_file(wifi_health_log, buff);
-        if (isVapPrivate(vap_index)) {
+        if (isVapPrivateNetwork(vap_index)) {
             snprintf(eventName, sizeof(eventName), "WIFI_PACKETSSENTCLIENTS_%d_split",
                 vap_index + 1);
             get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
@@ -1432,7 +1431,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
         }
         strncat(buff, "\n", 2);
         write_to_file(wifi_health_log, buff);
-        if (isVapPrivate(vap_index)) {
+        if (isVapPrivateNetwork(vap_index)) {
             snprintf(eventName, sizeof(eventName), "WIFI_ERRORSSENT_%d_split", vap_index + 1);
             get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
         } else if (isVapLnfPsk(vap_index) && is_managed_wifi) {
@@ -1465,7 +1464,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
         }
         strncat(buff, "\n", 2);
         write_to_file(wifi_health_log, buff);
-        if (isVapPrivate(vap_index)) {
+        if (isVapPrivateNetwork(vap_index)) {
             snprintf(eventName, sizeof(eventName), "WIFIRetransCount%d_split", vap_index + 1);
             get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
         } else if (isVapLnfPsk(vap_index) && is_managed_wifi) {
@@ -1575,7 +1574,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
     }
     strncat(buff, "\n", 2);
     write_to_file(wifi_health_log, buff);
-    if (isVapPrivate(vap_index)) {
+    if (isVapPrivateNetwork(vap_index)) {
         snprintf(eventName, sizeof(eventName), "GB_RSSI_%d_split", vap_index + 1);
         get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
     } else if (isVapLnfPsk(vap_index) && is_managed_wifi) {
@@ -1606,7 +1605,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
         }
         strncat(buff, "\n", 2);
         write_to_file(wifi_health_log, buff);
-        if (isVapPrivate(vap_index)) {
+        if (isVapPrivateNetwork(vap_index)) {
             snprintf(eventName, sizeof(eventName), "WIFI_REC_%d_split", vap_index + 1);
             get_stubs_descriptor()->t2_event_s_fn(eventName, telemetryBuff);
         } else if (isVapLnfPsk(vap_index) && is_managed_wifi) {
@@ -1640,7 +1639,7 @@ void update_clientdiagdata(wifi_app_t *app, unsigned int num_devs, int vap_idx,
 
     // check call
     upload_client_debug_stats_whix(vap_idx);
-    if (isVapHotspotSecure(vap_idx)) {
+    if (isVapHotspotSecure(vap_idx) && !isVapRepurposeTarget(vap_idx)) {
         upload_ap_telemetry_anqp_whix(vap_idx);
     }
 #ifdef CONFIG_IEEE80211BE

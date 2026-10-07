@@ -54,6 +54,19 @@ typedef enum {
 void process_instant_msmt_stop();
 static wifi_harvester_t g_harvester_module;
 
+static bool instant_client_is_on_band(wifi_freq_bands_t band)
+{
+    int radio_index = get_radio_index_for_vap_index(&get_wifimgr_obj()->hal_cap.wifi_prop,
+        g_harvester_module.inst_msmt.ap_index);
+    wifi_radio_operationParam_t *radio;
+
+    if (radio_index < 0) {
+        return false;
+    }
+    radio = getRadioOperationParam(radio_index);
+    return radio != NULL && radio->band == band;
+}
+
 #define DEFAULT_INSTANT_REPORT_TIME 0
 #define DEFAULT_INSTANT_POLL_TIME 5
 #define MAX_BUFF_SIZE  20480
@@ -510,13 +523,10 @@ void upload_single_client_msmt_data(sta_data_t *sta_info)
     avro_value_get_by_name(&optional, "channel_noise_floor_5ghz", &drField, NULL);
     avro_value_set_branch(&drField, 1, &optional);
 
-    if((g_harvester_module.inst_msmt.ap_index+1) == 2) //Noise floor for vAP index 2 (5GHz)
-    {
+    if (instant_client_is_on_band(WIFI_FREQUENCY_5_BAND)) {
         //avro_value_set_int(&optional, (int)(sta_data->dev_stats.cli_SignalStrength - sta_data->dev_stats.cli_SNR));
         avro_value_set_int(&optional, (int)g_harvester_module.radio_data[1]->NoiseFloor);
-    }
-    else
-    {
+    } else {
         avro_value_set_int(&optional, 0);
     }
 
@@ -540,13 +550,10 @@ void upload_single_client_msmt_data(sta_data_t *sta_info)
     avro_value_get_by_name(&optional, "channel_noise_floor_2_4ghz", &drField, NULL);
     avro_value_set_branch(&drField, 1, &optional);
 
-    if((g_harvester_module.inst_msmt.ap_index+1) == 1) //Noise floor for vAP index 1 (2.4GHz)
-    {
+    if (instant_client_is_on_band(WIFI_FREQUENCY_2_4_BAND)) {
         //avro_value_set_int(&optional, (int)(sta_data->dev_stats.cli_SignalStrength - sta_data->dev_stats.cli_SNR));
         avro_value_set_int(&optional, (int)g_harvester_module.radio_data[0]->NoiseFloor);
-    }
-    else
-    {
+    } else {
         avro_value_set_int(&optional, 0);
     }
 

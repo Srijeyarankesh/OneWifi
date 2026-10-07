@@ -113,6 +113,61 @@ int update_global_cache(wifi_vap_info_map_t *tgt_vap_map, rdk_wifi_vap_info_t *r
     return RETURN_OK;
 }
 
+int update_repurposed_vap_acl(unsigned int vap_index, bool active)
+{
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+    wifi_vap_info_t *source;
+    rdk_wifi_vap_info_t *source_rdk;
+    acl_entry_t *entry;
+    mac_addr_str_t mac;
+    int source_index, mode = 0;
+
+    if (!isVapRepurposeTarget(vap_index) || mgr == NULL) {
+        return RETURN_ERR;
+    }
+#ifdef NL80211_ACL
+    if (wifi_hal_delApAclDevices(vap_index) != RETURN_OK) {
+#else
+    if (wifi_delApAclDevices(vap_index) != RETURN_OK) {
+#endif
+        return RETURN_ERR;
+    }
+    if (active) {
+        source_index = convert_vap_name_to_index(&mgr->hal_cap.wifi_prop, "private_ssid_2g");
+        if (source_index < 0) {
+            return RETURN_ERR;
+        }
+        source = get_wifidb_vap_parameters(source_index);
+        source_rdk = get_wifidb_rdk_vap_info(source_index);
+        if (source == NULL || source_rdk == NULL) {
+            return RETURN_ERR;
+        }
+        if (source->u.bss_info.mac_filter_enable) {
+            mode = source->u.bss_info.mac_filter_mode == wifi_mac_filter_mode_black_list ? 2 : 1;
+        }
+        /* Read the source list without sharing ownership of either VAP's hash map. */
+        entry = source_rdk->acl_map == NULL ? NULL : hash_map_get_first(source_rdk->acl_map);
+        while (entry != NULL) {
+            if (!is_zero_mac(entry->mac)) {
+                to_mac_str(entry->mac, mac);
+#ifdef NL80211_ACL
+                if (wifi_hal_addApAclDevice(vap_index, mac) != RETURN_OK) {
+#else
+                if (wifi_addApAclDevice(vap_index, mac) != RETURN_OK) {
+#endif
+                    return RETURN_ERR;
+                }
+            }
+            entry = hash_map_get_next(source_rdk->acl_map, entry);
+        }
+    }
+#ifdef NL80211_ACL
+    return wifi_hal_setApMacAddressControlMode(vap_index, mode);
+#else
+    return wifi_setApMacAddressControlMode(vap_index, mode);
+#endif
+}
+
 int update_acl_entries(wifi_vap_info_map_t *tgt_vap_map)
 {
     rdk_wifi_vap_info_t *vap_info;
@@ -123,6 +178,14 @@ int update_acl_entries(wifi_vap_info_map_t *tgt_vap_map)
 
     for (i = 0; i < tgt_vap_map->num_vaps; i++) {
         vap_index = tgt_vap_map->vap_array[i].vap_index;
+        if (isVapRepurposeTarget(vap_index)) {
+            if (update_repurposed_vap_acl(vap_index,
+                    strcmp(tgt_vap_map->vap_array[i].repurposed_vap_name,
+                        WIFI_REPURPOSED_PRIVATE_2G_NAME) == 0) != RETURN_OK) {
+                return RETURN_ERR;
+            }
+            continue;
+        }
 #ifdef NL80211_ACL
         wifi_hal_delApAclDevices(vap_index);
 #else
@@ -256,6 +319,11 @@ int vap_svc_start_stop(vap_svc_t *svc, unsigned int radio_index, bool enable)
         memset(tgt_vap_map, 0, sizeof(wifi_vap_info_map_t));
         memset(tgt_rdk_vaps, 0, sizeof(tgt_rdk_vaps));
         for (j = 0; j < vap_map->num_vaps; j++) {
+            if (enable && isVapRepurposeTarget(vap_map->vap_array[j].vap_index)) {
+                /* The dedicated reapply runs after native service startup. Stops still include it.
+                 */
+                continue;
+            }
             if (svc->is_my_fn(vap_map->vap_array[j].vap_index) == false) {
                 continue;
             }
@@ -350,6 +418,12 @@ vap_svc_t *get_svc_by_name(wifi_ctrl_t *ct, char *vap_name)
 {
     vap_svc_type_t type = vap_svc_type_max;
 
+    int vap_index = convert_vap_name_to_index(&get_wifimgr_obj()->hal_cap.wifi_prop, vap_name);
+
+    if (vap_index >= 0 && isVapRepurposeTarget(vap_index)) {
+        /* Includes the private service's deliberate transition to dormant. */
+        return get_svc_by_type(ct, vap_svc_type_private);
+    }
     if (strstr(vap_name, "private") != NULL) {
         type = vap_svc_type_private;
     } else if (strstr(vap_name, "iot") != NULL) {
