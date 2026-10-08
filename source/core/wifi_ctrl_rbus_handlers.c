@@ -59,129 +59,6 @@ static bool g_wei_ignite_enable = false;
 /* Defined with the WEI RFC provider table further down. */
 static int wei_lookup_param(const char *name);
 
-/* Only OneWifi owns the derived target profile. External consumers retain the
- * existing disabled hotspot identity and never receive its private credentials. */
-int project_repurposed_vap_for_external(webconfig_subdoc_decoded_data_t *data)
-{
-    unsigned int i, j;
-
-    if (data == NULL || data->num_radios > MAX_NUM_RADIOS) {
-        return RETURN_ERR;
-    }
-    for (i = 0; i < data->num_radios; i++) {
-        wifi_vap_info_map_t *map = &data->radios[i].vaps.vap_map;
-        if (map->num_vaps > MAX_NUM_VAP_PER_RADIO) {
-            return RETURN_ERR;
-        }
-        for (j = 0; j < map->num_vaps; j++) {
-            wifi_vap_info_t *vap = &map->vap_array[j];
-            rdk_wifi_vap_info_t *rdk_vap = &data->radios[i].vaps.rdk_vap_array[j];
-
-            if (vap->vap_name[0] == '\0' || !isVapRepurposeTarget(vap->vap_index)) {
-                continue;
-            }
-            if (get_repurposed_vap_dormant_config(vap->vap_index, vap, rdk_vap) != RETURN_OK) {
-                return RETURN_ERR;
-            }
-            /* These are borrowed cache pointers in a snapshot: never free them. */
-            rdk_vap->acl_map = NULL;
-            rdk_vap->associated_devices_map = NULL;
-            rdk_vap->associated_devices_diff_map = NULL;
-        }
-    }
-    return RETURN_OK;
-}
-
-static webconfig_error_t encode_external_snapshot(webconfig_t *config,
-    webconfig_subdoc_data_t *data, webconfig_subdoc_type_t type)
-{
-    if (project_repurposed_vap_for_external(&data->u.decoded) != RETURN_OK) {
-        return webconfig_error_encode;
-    }
-    return webconfig_encode(config, data, type);
-}
-
-static bus_error_t get_repurposed_vap_enable(char *name, raw_data_t *data,
-    bus_user_data_t *user_data)
-{
-    wifi_mgr_t *mgr = get_wifimgr_obj();
-
-    (void)user_data;
-    if (name == NULL || data == NULL || mgr == NULL ||
-        strcmp(name, WIFI_REPURPOSED_VAP_ENABLE) != 0) {
-        return bus_error_invalid_input;
-    }
-    pthread_mutex_lock(&mgr->data_cache_lock);
-    data->data_type = bus_data_type_boolean;
-    data->raw_data.b = mgr->rfc_dml_parameters.repurposed_vap_enable;
-    pthread_mutex_unlock(&mgr->data_cache_lock);
-    return bus_error_success;
-}
-
-static bus_error_t set_repurposed_vap_enable(char *name, raw_data_t *data,
-    bus_user_data_t *user_data)
-{
-    wifi_mgr_t *mgr = get_wifimgr_obj();
-    int vap_index;
-
-    (void)user_data;
-    if (name == NULL || data == NULL || mgr == NULL ||
-        strcmp(name, WIFI_REPURPOSED_VAP_ENABLE) != 0 || data->data_type != bus_data_type_boolean) {
-        return bus_error_invalid_input;
-    }
-    vap_index = convert_vap_name_to_index(&mgr->hal_cap.wifi_prop, "hotspot_secure_2g");
-    if (vap_index < 0 || !isVapRepurposeTarget((unsigned int)vap_index) ||
-        !mgr->ctrl.ctrl_initialized) {
-        return bus_error_invalid_operation;
-    }
-    /* Queue every valid request. Comparing here could discard disable while an
-     * earlier enable is queued but has not committed the RFC yet. */
-    return push_event_to_ctrl_queue(&data->raw_data.b, sizeof(data->raw_data.b),
-               wifi_event_type_command, wifi_event_type_repurposed_vap_rfc, NULL) == RETURN_OK ?
-        bus_error_success :
-        bus_error_general;
-}
-
-int publish_repurposed_vap_status(bool enabled)
-{
-    wifi_ctrl_t *ctrl = get_wifictrl_obj();
-    raw_data_t data = { 0 };
-
-    if (ctrl == NULL) {
-        return RETURN_ERR;
-    }
-    data.data_type = bus_data_type_boolean;
-    data.raw_data.b = enabled;
-    if (get_bus_descriptor()->bus_event_publish_fn(&ctrl->handle, WIFI_REPURPOSED_VAP_STATUS,
-            &data) != bus_error_success) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d failed to publish repurposed VAP status\n",
-            __func__, __LINE__);
-        return RETURN_ERR;
-    }
-    return RETURN_OK;
-}
-
-static bus_error_t repurposed_vap_status_subscribe(char *name, bus_event_sub_action_t action,
-    int32_t interval, bool *auto_publish)
-{
-    bool replay = true;
-
-    (void)interval;
-    if (name == NULL || auto_publish == NULL || strcmp(name, WIFI_REPURPOSED_VAP_STATUS) != 0) {
-        return bus_error_invalid_input;
-    }
-    *auto_publish = false;
-    if (action != bus_event_action_subscribe) {
-        return bus_error_success;
-    }
-    /* Replay on the controller queue, after earlier apply requests, rather than
-     * publishing a stale value directly from the bus subscription callback. */
-    return push_event_to_ctrl_queue(&replay, sizeof(replay), wifi_event_type_command,
-               wifi_event_type_repurposed_vap_status, NULL) == RETURN_OK ?
-        bus_error_success :
-        bus_error_general;
-}
-
 static int get_subdoc_type(wifi_provider_response_t *response, webconfig_subdoc_type_t *subdoc,
     char *eventName)
 {
@@ -655,7 +532,7 @@ int stats_bus_publish(wifi_ctrl_t *ctrl, void *stats_data)
 
         wifi_util_dbg_print(WIFI_CTRL, "%s:%d subdoc_type is %d and eventName is %s at %ld\n",
             __func__, __LINE__, subdoc_type, eventName, response->response_time);
-        if (encode_external_snapshot(&ctrl->webconfig, data, subdoc_type) != webconfig_error_none) {
+        if (webconfig_encode(&ctrl->webconfig, data, subdoc_type) != webconfig_error_none) {
             wifi_util_error_print(WIFI_CTRL, "%s:%d Error in encoding radio stats\n", __func__,
                 __LINE__);
             free(data->u.decoded.collect_stats.stats);
@@ -977,6 +854,57 @@ int notify_wifi_sec_mode_enabled(wifi_ctrl_t *ctrl, int ap_index, char *old_mode
     return RETURN_OK;
 }
 
+/* Sync notification of the repurposed vap RFC change */
+int notify_repurposed_vap_enable(wifi_ctrl_t *ctrl, bool enable)
+{
+    bus_error_t rc;
+    char str[128];
+
+    if (ctrl == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: NULL Pointer \n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
+
+    snprintf(str, sizeof(str), "%s,16,%s,%s,3", WIFI_REPURPOSED_VAP_ENABLE,
+        enable ? "true" : "false", enable ? "false" : "true");
+
+    wifi_util_info_print(WIFI_CTRL, "%s:%d: sending str %s as notification to WIFI_NOTIFY_SYNC_COMPONENT\n", __func__, __LINE__, str);
+    rc = get_bus_descriptor()->bus_set_string_fn(&ctrl->handle, WIFI_NOTIFY_SYNC_COMPONENT, str);
+    if (rc != bus_error_success) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: bus: bus_set_string_fn Failed %d\n", __func__,
+            __LINE__, rc);
+        return RETURN_ERR;
+    }
+    return RETURN_OK;
+}
+
+/* Event of the applied repurposed vap state */
+int notify_repurposed_vap_status(wifi_ctrl_t *ctrl, bool enabled)
+{
+    bus_error_t rc;
+    raw_data_t rdata;
+
+    if (ctrl == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: NULL Pointer \n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
+
+    memset(&rdata, 0, sizeof(raw_data_t));
+    rdata.data_type = bus_data_type_boolean;
+    rdata.raw_data.b = enabled;
+
+    wifi_util_info_print(WIFI_CTRL, "%s:%d: %s %d\n", __func__, __LINE__,
+        WIFI_REPURPOSED_VAP_STATUS, enabled);
+    rc = get_bus_descriptor()->bus_event_publish_fn(&ctrl->handle, WIFI_REPURPOSED_VAP_STATUS,
+        &rdata);
+    if (rc != bus_error_success) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: bus_event_publish_fn failed %d\n", __func__,
+            __LINE__, rc);
+        return RETURN_ERR;
+    }
+    return RETURN_OK;
+}
+
 int webconfig_bus_apply_for_dml_thread_update(wifi_ctrl_t *ctrl,
     webconfig_subdoc_encoded_data_t *data)
 {
@@ -1138,14 +1066,13 @@ bus_error_t webconfig_init_data_get_subdoc(char *event_name, raw_data_t *p_data,
             sizeof(wifi_hal_capability_t));
         data->u.decoded.num_radios = num_of_radios;
         // tell webconfig to encode
-        if (encode_external_snapshot(&ctrl->webconfig, data, webconfig_subdoc_type_dml) !=
-            webconfig_error_none) {
-            wifi_util_error_print(WIFI_CTRL, "%s:%d webconfig encode failed\n", __func__, __LINE__);
-            webconfig_data_free(data);
+	    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_dml) != webconfig_error_none) {
+	        wifi_util_error_print(WIFI_CTRL, "%s:%d webconfig encode failed\n", __func__, __LINE__);
+	        webconfig_data_free(data);
             free(data);
 	        data = NULL;
 	        return bus_error_general;
-        }
+	    }
 
         uint32_t str_size = (strlen(data->u.encoded.raw) + 1);
         p_data->data_type = bus_data_type_string;
@@ -1179,26 +1106,22 @@ bus_error_t webconfig_init_data_get_subdoc(char *event_name, raw_data_t *p_data,
 	if (ctrl->dev_type != dev_subtype_pod) {
 		memcpy((unsigned char *)&data->u.decoded.config, (unsigned char *)&mgr->global_config,
 				sizeof(wifi_global_config_t));
-                if (encode_external_snapshot(&ctrl->webconfig, data, webconfig_subdoc_type_dml) !=
-                    webconfig_error_none) {
-                    wifi_util_error_print(WIFI_CTRL, "%s:%d webconfig encode failed\n", __func__,
-                        __LINE__);
-                    webconfig_data_free(data);
-                    free(data);
-                    data = NULL;
-                    return bus_error_general;
-                }
-        } else {
-            if (encode_external_snapshot(&ctrl->webconfig, data, webconfig_subdoc_type_mesh_sta) !=
-                webconfig_error_none) {
-                wifi_util_error_print(WIFI_CTRL, "%s:%d webconfig encode failed\n", __func__,
-                    __LINE__);
-                webconfig_data_free(data);
-                free(data);
-                data = NULL;
-                return bus_error_general;
-            }
-        }
+		if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_dml) != webconfig_error_none) {
+			wifi_util_error_print(WIFI_CTRL, "%s:%d webconfig encode failed\n", __func__, __LINE__);
+			webconfig_data_free(data);
+            free(data);
+			data = NULL;
+			return bus_error_general;
+		}
+	} else {
+		if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_mesh_sta) != webconfig_error_none) {
+			wifi_util_error_print(WIFI_CTRL, "%s:%d webconfig encode failed\n", __func__, __LINE__);
+			webconfig_data_free(data);
+            free(data);
+			data = NULL;
+			return bus_error_general;
+		}
+	}
 
         uint32_t str_size = (strlen(data->u.encoded.raw) + 1);
         p_data->data_type = bus_data_type_string;
@@ -1302,7 +1225,7 @@ bus_error_t webconfig_get_dml_subdoc(char *event_name, raw_data_t *p_data, bus_u
         sizeof(wifi_hal_capability_t));
     data->u.decoded.num_radios = getNumberRadios();
     // tell webconfig to encode
-    if (encode_external_snapshot(&ctrl->webconfig, data, webconfig_subdoc_type_dml) !=
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_dml) !=
         webconfig_error_none) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d webconfig encode failed\n", __func__, __LINE__);
         webconfig_data_free(data);
@@ -1616,8 +1539,7 @@ bus_error_t get_assoc_clients_data(char *event_name, raw_data_t *p_data, bus_use
 
     data->u.decoded.num_radios = getNumberRadios();
     data->u.decoded.assoclist_notifier_type = assoclist_notifier_full;
-    if (encode_external_snapshot(&ctrl->webconfig, data,
-            webconfig_subdoc_type_associated_clients) != webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_associated_clients) != webconfig_error_none) {
         webconfig_data_free(data);
         free(data);
         return bus_error_general;
@@ -1674,8 +1596,7 @@ bus_error_t get_null_subdoc_data(char *name, raw_data_t *p_data, bus_user_data_t
         sizeof(wifi_hal_capability_t));
 
     data->u.decoded.num_radios = getNumberRadios();
-    if (encode_external_snapshot(&ctrl->webconfig, data, webconfig_subdoc_type_null) !=
-        webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_null) != webconfig_error_none) {
         webconfig_data_free(data);
         free(data);
         return bus_error_general;
@@ -1887,8 +1808,7 @@ char *get_assoc_devices_blob()
     pdata->u.decoded.num_radios = getNumberRadios();
     pdata->u.decoded.assoclist_notifier_type = assoclist_notifier_full;
 
-    if (encode_external_snapshot(&ctrl->webconfig, pdata,
-            webconfig_subdoc_type_associated_clients) != webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, pdata, webconfig_subdoc_type_associated_clients) != webconfig_error_none) {
         webconfig_data_free(pdata);
         free(pdata);
         return NULL;
@@ -1943,7 +1863,7 @@ bus_error_t get_acl_device_data(char *name, raw_data_t *p_data, bus_user_data_t 
 
     data->u.decoded.num_radios = getNumberRadios();
 
-    if (encode_external_snapshot(&ctrl->webconfig, data, webconfig_subdoc_type_mac_filter) ==
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_mac_filter) ==
         webconfig_error_none) {
 
         uint32_t str_size = strlen(data->u.encoded.raw) + 1;
@@ -2107,7 +2027,7 @@ bus_error_t set_ignite_link_quality_threshold(char *event_name, raw_data_t *p_da
     webconfig_init_subdoc_data(data);
     data->u.decoded.config.global_parameters.ignite_link_quality_threshold = threshold;
 
-    if (encode_external_snapshot(&ctrl->webconfig, data, webconfig_subdoc_type_wifi_config) !=
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_wifi_config) !=
         webconfig_error_none) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to encode wifi_config subdoc\n", __func__,
             __LINE__);
@@ -3443,8 +3363,8 @@ bus_error_t apply_ignite_config(char *paramName,
     pthread_mutex_unlock(&g_apply_ignite_config.lock);
 
     // Encode and push to queue
-    if (encode_external_snapshot(&ctrl->webconfig, &data, webconfig_subdoc_type_ignite) ==
-        webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, &data, webconfig_subdoc_type_ignite)
+        == webconfig_error_none) {
         wifi_util_info_print(WIFI_CTRL, "%s:%d webconfig_encode success\n", __FUNCTION__, __LINE__);
         str = (char *)data.u.encoded.raw;
         push_event_to_ctrl_queue(str, strlen(str), wifi_event_type_webconfig,
@@ -4779,7 +4699,7 @@ bus_error_t set_force_vap_apply(char *name, raw_data_t *p_data, bus_user_data_t 
 
         get_subdoc_type_name_from_ap_index(idx - 1, &subdoc_type);
 
-        if (encode_external_snapshot(&ctrl->webconfig, data, subdoc_type) != webconfig_error_none) {
+        if (webconfig_encode(&ctrl->webconfig, data, subdoc_type) != webconfig_error_none) {
             wifi_util_error_print(WIFI_CTRL, "%s:%d Error in encoding radio stats\n", __func__,
                 __LINE__);
             webconfig_data_free(data);
@@ -4796,6 +4716,82 @@ bus_error_t set_force_vap_apply(char *name, raw_data_t *p_data, bus_user_data_t 
     wifi_util_error_print(WIFI_CTRL, "%s:%d Invalid name : %s\r\n", __func__, __LINE__, name);
 
     return bus_error_invalid_input;
+}
+
+bus_error_t get_repurposed_vap_param(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void)user_data;
+    int vap_index = getRepurposeTargetVapIndex();
+
+    if ((name == NULL) || (p_data == NULL)) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d property name is not found\r\n", __func__,
+            __LINE__);
+        return bus_error_invalid_input;
+    }
+
+    p_data->data_type = bus_data_type_boolean;
+    if (strcmp(name, WIFI_REPURPOSED_VAP_ENABLE) == 0) {
+        p_data->raw_data.b = get_wifi_db_rfc_parameters()->repurposed_vap_enable;
+    } else if (strcmp(name, WIFI_REPURPOSED_VAP_STATUS) == 0) {
+        p_data->raw_data.b = (vap_index >= 0) && isVapRepurposed(vap_index);
+    } else {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d Invalid name : %s\r\n", __func__, __LINE__, name);
+        return bus_error_invalid_input;
+    }
+    p_data->raw_data_len = sizeof(p_data->raw_data.b);
+
+    return bus_error_success;
+}
+
+bus_error_t set_repurposed_vap_enable(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void)user_data;
+    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+    webconfig_subdoc_data_t *data;
+
+    if ((name == NULL) || (p_data == NULL) || (strcmp(name, WIFI_REPURPOSED_VAP_ENABLE) != 0)) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d property name is not found\r\n", __func__,
+            __LINE__);
+        return bus_error_invalid_input;
+    }
+
+    if (p_data->data_type != bus_data_type_boolean) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d-%s wrong bus data_type:%x\n", __func__, __LINE__,
+            name, p_data->data_type);
+        return bus_error_invalid_input;
+    }
+
+    if (getRepurposeTargetVapIndex() < 0) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d no vap to repurpose\n", __func__, __LINE__);
+        return bus_error_invalid_operation;
+    }
+
+    data = (webconfig_subdoc_data_t *)malloc(sizeof(webconfig_subdoc_data_t));
+    if (data == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d Malloc failed for name %s\n", __func__, __LINE__,
+            name);
+        return bus_error_general;
+    }
+
+    // the private subdoc carries the request, enabled with the repurposed vap configuration
+    webconfig_init_subdoc_data(data);
+    data->u.decoded.repurposed_vap = p_data->raw_data.b ? webconfig_repurposed_vap_enable :
+                                                          webconfig_repurposed_vap_disable;
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_private) !=
+        webconfig_error_none) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d Error in encoding private subdoc\n", __func__,
+            __LINE__);
+        webconfig_data_free(data);
+        free(data);
+        return bus_error_general;
+    }
+
+    push_event_to_ctrl_queue(data->u.encoded.raw, strlen(data->u.encoded.raw),
+        wifi_event_type_webconfig, wifi_event_webconfig_set_data, NULL);
+    webconfig_data_free(data);
+    free(data);
+
+    return bus_error_success;
 }
 
 void register_endpoint_components(wifi_ctrl_t *ctrl)
@@ -4925,176 +4921,174 @@ void bus_register_handlers(wifi_ctrl_t *ctrl)
     int num_of_vaps = getTotalNumberVAPs(NULL);
     int num_elements;
     bus_data_element_t dataElements[] = {
-        { WIFI_REPURPOSED_VAP_ENABLE,                     bus_element_type_property,
-         { get_repurposed_vap_enable, set_repurposed_vap_enable, NULL, NULL, NULL, NULL },
-         slow_speed,                                                                                                                     ZERO_TABLE,   { bus_data_type_boolean, true, 0, 0, 0, NULL }  },
-        { WIFI_REPURPOSED_VAP_STATUS,                     bus_element_type_event,
-         { NULL, NULL, NULL, NULL, repurposed_vap_status_subscribe, NULL },                                                  slow_speed,
-         ZERO_TABLE,                                                                                                                                   { bus_data_type_boolean, false, 0, 0, 0, NULL } },
-        { WIFI_WEBCONFIG_DOC_DATA_SOUTH,                  bus_element_type_method,
-         { NULL, webconfig_set_subdoc, NULL, NULL, NULL, NULL },                                                             slow_speed, ZERO_TABLE,
-         { bus_data_type_string, true, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_WEBCONFIG_DOC_DATA_NORTH,                  bus_element_type_method,
-         { NULL, NULL, NULL, NULL, NULL, NULL },                                                                             slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_WEBCONFIG_INIT_DATA,                       bus_element_type_method,
-         { webconfig_init_data_get_subdoc, NULL, NULL, NULL, NULL, NULL },                                                   slow_speed,
-         ZERO_TABLE,                                                                                                                                   { bus_data_type_string, false, 0, 0, 0, NULL }  },
-        { WIFI_WEBCONFIG_INIT_DML_DATA,                   bus_element_type_method,
-         { webconfig_get_dml_subdoc, NULL, NULL, NULL, NULL, NULL },                                                         slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_WEBCONFIG_GET_ASSOC,                       bus_element_type_method,
-         { get_assoc_clients_data, NULL, NULL, NULL, NULL, NULL },                                                           slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_IGNITE_NAMESPACE,                          bus_element_type_table,
-         { NULL, NULL, ignite_table_addrowhandler, ignite_table_removerowhandler,
-                eventSubHandler, NULL },
-         slow_speed,                                                                                                                     num_of_radio, { bus_data_type_object, false, 0, 0, 0, NULL }  },
-        { WIFI_IGNITE_MIN_CHUTIL_THRESHOLD,               bus_element_type_property,
-         { get_ignite_attributes, set_ignite_attributes, NULL, NULL, NULL, NULL },                                           slow_speed,
-         num_of_radio,                                                                                                                                 { bus_data_type_uint8, false, 0, 0, 0, NULL }   },
-        { WIFI_IGNITE_MAX_CHUTIL_THRESHOLD,               bus_element_type_property,
-         { get_ignite_attributes, set_ignite_attributes, NULL, NULL, NULL, NULL },                                           slow_speed,
-         num_of_radio,                                                                                                                                 { bus_data_type_uint8, false, 0, 0, 0, NULL }   },
-        { WIFI_IGNITE_SNR_DIFFERENCE,                     bus_element_type_property,
-         { get_ignite_attributes, set_ignite_attributes, NULL, NULL, NULL, NULL },                                           slow_speed,
-         num_of_radio,                                                                                                                                 { bus_data_type_uint8, false, 0, 0, 0, NULL }   },
-        { WIFI_IGNITE_APPLY_CONFIG,                       bus_element_type_property,
-         { NULL, apply_ignite_config, NULL, NULL, NULL, NULL },                                                              slow_speed, ZERO_TABLE,
-         { bus_data_type_boolean, false, 0, 0, 0, NULL }                                                                                                                                               },
-        { WIFI_STA_NAMESPACE,                             bus_element_type_table,
-         { NULL, NULL, events_STAtable_addrowhandler, events_STAtable_removerowhandler,
-                eventSubHandler, NULL },
-         slow_speed,                                                                                                                     num_of_radio, { bus_data_type_object, false, 0, 0, 0, NULL }  },
-        { WIFI_STA_CONNECT_STATUS,                        bus_element_type_property,
-         { get_sta_attribs, set_sta_attribs, NULL, NULL, eventSubHandler, NULL },                                            slow_speed,
-         ZERO_TABLE,                                                                                                                                   { bus_data_type_bytes, true, 0, 0, 0, NULL }    },
-        { WIFI_STA_INTERFACE_NAME,                        bus_element_type_property,
-         { get_sta_attribs, set_sta_attribs, NULL, NULL, eventSubHandler, NULL },                                            slow_speed,
-         ZERO_TABLE,                                                                                                                                   { bus_data_type_string, true, 0, 0, 0, NULL }   },
-        { WIFI_STA_CONNECTED_GW_BSSID,                    bus_element_type_property,
-         { get_sta_attribs, set_sta_attribs, NULL, NULL, eventSubHandler, NULL },                                            slow_speed,
-         ZERO_TABLE,                                                                                                                                   { bus_data_type_bytes, true, 0, 0, 0, NULL }    },
-        { WIFI_BUS_WIFIAPI_COMMAND,                       bus_element_type_method,
-         { NULL, set_wifiapi_command, NULL, NULL, NULL, NULL },                                                              slow_speed, ZERO_TABLE,
-         { bus_data_type_string, true, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_BUS_WIFIAPI_RESULT,                        bus_element_type_event,
-         { NULL, NULL, NULL, NULL, wifiapi_event_handler, NULL },                                                            slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_WEBCONFIG_GET_CSI,                         bus_element_type_method,   { NULL, NULL, NULL, NULL, NULL, NULL },
-         slow_speed,                                                                                                                     ZERO_TABLE,   { bus_data_type_string, false, 0, 0, 0, NULL }  },
-        { WIFI_WEBCONFIG_GET_ACL,                         bus_element_type_method,
-         { get_acl_device_data, NULL, NULL, NULL, NULL, NULL },                                                              slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_WEBCONFIG_PRIVATE_VAP,                     bus_element_type_method,
-         { NULL, get_private_vap, NULL, NULL, NULL, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_string, true, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_WEBCONFIG_HOME_VAP,                        bus_element_type_method,
-         { NULL, get_home_vap, NULL, NULL, NULL, NULL },                                                                     slow_speed, ZERO_TABLE,
-         { bus_data_type_string, true, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_WEBCONFIG_IGNITEWIFI,                      bus_element_type_method,
-         { NULL, get_ignitewifi, NULL, NULL, NULL, NULL },                                                                   slow_speed, ZERO_TABLE,
-         { bus_data_type_string, true, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_WEBCONFIG_IGNITE_LQ_THRESHOLD,             bus_element_type_method,
-         { get_ignite_link_quality_threshold, set_ignite_link_quality_threshold, NULL, NULL,
-                NULL, NULL },
-         slow_speed,                                                                                                                     ZERO_TABLE,   { bus_data_type_string, true, 0, 0, 0, NULL }   },
-        { WIFI_BUS_HOTSPOT_UP,                            bus_element_type_event,
-         { NULL, NULL, NULL, NULL, hotspot_event_handler, NULL },                                                            slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_BUS_HOTSPOT_DOWN,                          bus_element_type_event,
-         { NULL, NULL, NULL, NULL, hotspot_event_handler, NULL },                                                            slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_WEBCONFIG_KICK_MAC,                        bus_element_type_method,
-         { NULL, set_kickassoc_command, NULL, NULL, NULL, NULL },                                                            slow_speed, ZERO_TABLE,
-         { bus_data_type_string, true, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_WEBCONFIG_GET_NULL_SUBDOC,                 bus_element_type_method,
-         { get_null_subdoc_data, NULL, NULL, NULL, NULL, NULL },                                                             slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_STA_TRIGGER_DISCONNECTION,                 bus_element_type_method,
-         { get_sta_disconnection, set_sta_disconnection, NULL, NULL, NULL, NULL },                                           slow_speed,
-         ZERO_TABLE,                                                                                                                                   { bus_data_type_uint32, true, 0, 0, 0, NULL }   },
-        { WIFI_STA_SELFHEAL_CONNECTION_TIMEOUT,           bus_element_type_event,
-         { get_sta_connection_timeout, NULL, NULL, NULL, NULL, NULL },                                                       slow_speed, ZERO_TABLE,
-         { bus_data_type_boolean, false, 0, 0, 0, NULL }                                                                                                                                               },
-        { WIFI_ACCESSPOINT_TABLE,                         bus_element_type_table,
-         { NULL, NULL, ap_table_addrowhandler, ap_table_removerowhandler, NULL, NULL },
-         slow_speed,                                                                                                                     num_of_vaps,  { bus_data_type_object, false, 0, 0, 0, NULL }  },
-        { WIFI_ACCESSPOINT_DEV_CONNECTED,                 bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_ACCESSPOINT_DEV_DISCONNECTED,              bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_ACCESSPOINT_DEV_DEAUTH,                    bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_ACCESSPOINT_RADIUS_CONNECTED_ENDPOINT,     bus_element_type_method,
-         { ap_get_radius_connected_endpoint, NULL, NULL, NULL, NULL, NULL },                                                 slow_speed,
-         ZERO_TABLE,                                                                                                                                   { bus_data_type_string, false, 0, 0, 0, NULL }  },
-        { WIFI_NOTIFY_INTEROP_DETAILS,                    bus_element_type_method,
-         { ap_get_interop_details, NULL, NULL, NULL, NULL, NULL },                                                           slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_ACCESSPOINT_DIAGDATA,                      bus_element_type_event,
-         { ap_get_handler, NULL, NULL, NULL, eventSubHandler, NULL },                                                        slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_ACCESSPOINT_FORCE_APPLY,                   bus_element_type_method,
-         { NULL, set_force_vap_apply, NULL, NULL, NULL, NULL },                                                              slow_speed, ZERO_TABLE,
-         { bus_data_type_boolean, true, 0, 0, 0, NULL }                                                                                                                                                },
-        { WIFI_ACCESSPOINT_RAWFRAME_MGMT_ACTION_RX,       bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  high_speed, ZERO_TABLE,
-         { bus_data_type_bytes, false, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_ACCESSPOINT_RAWFRAME_MGMT_ACTION_TX,       bus_element_type_method,
-         { NULL, send_action_frame, NULL, NULL, NULL, NULL },                                                                high_speed, ZERO_TABLE,
-         { bus_data_type_bytes, true, 0, 0, 0, NULL }                                                                                                                                                  },
-        { ACCESSPOINT_ASSOC_REQ_EVENT,                    bus_element_type_method,
-         { NULL, NULL, NULL, NULL, NULL, NULL },                                                                             slow_speed, ZERO_TABLE,
-         { bus_data_type_string, true, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_CLIENT_GET_ASSOC_REQ,                      bus_element_type_method,
-         { NULL, NULL, NULL, NULL, NULL, get_client_assoc_request_multi },                                                   slow_speed,
-         ZERO_TABLE,                                                                                                                                   { bus_data_type_bytes, true, 0, 0, 0, NULL }    },
-        { WIFI_COLLECT_STATS_TABLE,                       bus_element_type_table,
-         { NULL, NULL, stats_table_addrowhandler, stats_table_removerowhandler, NULL, NULL },
-         slow_speed,                                                                                                                     num_of_radio, { bus_data_type_object, false, 0, 0, 0, NULL }  },
-        { WIFI_COLLECT_STATS_RADIO_ON_CHANNEL_STATS,      bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_bytes, false, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_COLLECT_STATS_RADIO_OFF_CHANNEL_STATS,     bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_bytes, false, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_COLLECT_STATS_RADIO_FULL_CHANNEL_STATS,    bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_bytes, false, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_COLLECT_STATS_NEIGHBOR_ON_CHANNEL_STATS,   bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_bytes, false, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_COLLECT_STATS_NEIGHBOR_OFF_CHANNEL_STATS,  bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_bytes, false, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_COLLECT_STATS_NEIGHBOR_FULL_CHANNEL_STATS, bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_bytes, false, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_COLLECT_STATS_RADIO_DIAGNOSTICS,           bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_bytes, false, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_COLLECT_STATS_RADIO_TEMPERATURE,           bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_bytes, false, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_COLLECT_STATS_VAP_TABLE,                   bus_element_type_table,
-         { NULL, NULL, stats_table_addrowhandler, stats_table_removerowhandler, NULL, NULL },
-         slow_speed,                                                                                                                     num_of_vaps,  { bus_data_type_object, false, 0, 0, 0, NULL }  },
-        { WIFI_COLLECT_STATS_ASSOC_DEVICE_STATS,          bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_bytes, false, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_CSA_BEACON_FRAME_RECEIVED,                 bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  high_speed, ZERO_TABLE,
-         { bus_data_type_bytes, false, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_ACCESSPOINT_GET_NASTA,                     bus_element_type_method,
-         { NULL, NULL, NULL, NULL, NULL, get_NaSta },                                                                        slow_speed, ZERO_TABLE,
-         { bus_data_type_string, true, 0, 0, 0, NULL }                                                                                                                                                 },
-        { WIFI_NASTA_RESPONSE_EVENT,                      bus_element_type_event,
-         { NULL, NULL, NULL, NULL, eventSubHandler, NULL },                                                                  slow_speed, ZERO_TABLE,
-         { bus_data_type_string, false, 0, 0, 0, NULL }                                                                                                                                                },
+                                { WIFI_WEBCONFIG_DOC_DATA_SOUTH, bus_element_type_method,
+                                    { NULL, webconfig_set_subdoc, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_DOC_DATA_NORTH, bus_element_type_method,
+                                    { NULL, NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_INIT_DATA, bus_element_type_method,
+                                    { webconfig_init_data_get_subdoc, NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_INIT_DML_DATA, bus_element_type_method,
+                                    { webconfig_get_dml_subdoc, NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_GET_ASSOC, bus_element_type_method,
+                                    { get_assoc_clients_data, NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_IGNITE_NAMESPACE, bus_element_type_table,
+                                    { NULL, NULL, ignite_table_addrowhandler, ignite_table_removerowhandler, eventSubHandler, NULL}, slow_speed, num_of_radio,
+                                    { bus_data_type_object, false, 0, 0, 0, NULL } },
+                                { WIFI_IGNITE_MIN_CHUTIL_THRESHOLD, bus_element_type_property,
+                                    { get_ignite_attributes, set_ignite_attributes, NULL, NULL, NULL, NULL}, slow_speed, num_of_radio,
+                                    { bus_data_type_uint8, false, 0, 0, 0, NULL } },
+                                { WIFI_IGNITE_MAX_CHUTIL_THRESHOLD, bus_element_type_property,
+                                    { get_ignite_attributes, set_ignite_attributes, NULL, NULL, NULL, NULL}, slow_speed, num_of_radio,
+                                    { bus_data_type_uint8, false, 0, 0, 0, NULL } },
+                                { WIFI_IGNITE_SNR_DIFFERENCE, bus_element_type_property,
+                                    { get_ignite_attributes, set_ignite_attributes, NULL, NULL, NULL, NULL}, slow_speed, num_of_radio,
+                                    { bus_data_type_uint8, false, 0, 0, 0, NULL } },
+                                { WIFI_IGNITE_APPLY_CONFIG, bus_element_type_property,
+                                    { NULL, apply_ignite_config, NULL, NULL, NULL, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_boolean, false, 0, 0, 0, NULL } },
+                                { WIFI_STA_NAMESPACE, bus_element_type_table,
+                                    { NULL, NULL, events_STAtable_addrowhandler, events_STAtable_removerowhandler, eventSubHandler, NULL}, slow_speed, num_of_radio,
+                                    { bus_data_type_object, false, 0, 0, 0, NULL } }, 
+			                    { WIFI_STA_CONNECT_STATUS, bus_element_type_property,
+                                    { get_sta_attribs, set_sta_attribs, NULL, NULL, eventSubHandler, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, true, 0, 0, 0, NULL } },
+                                { WIFI_STA_INTERFACE_NAME, bus_element_type_property,
+                                    { get_sta_attribs, set_sta_attribs, NULL, NULL, eventSubHandler, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+                                { WIFI_STA_CONNECTED_GW_BSSID, bus_element_type_property,
+                                    { get_sta_attribs, set_sta_attribs, NULL, NULL, eventSubHandler, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, true, 0, 0, 0, NULL } },
+                                { WIFI_BUS_WIFIAPI_COMMAND, bus_element_type_method,
+                                    { NULL, set_wifiapi_command, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+                                { WIFI_BUS_WIFIAPI_RESULT, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, wifiapi_event_handler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_GET_CSI, bus_element_type_method,
+                                    { NULL, NULL, NULL, NULL, NULL, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_GET_ACL, bus_element_type_method,
+                                    { get_acl_device_data, NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_PRIVATE_VAP, bus_element_type_method,
+                                    { NULL, get_private_vap, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_HOME_VAP, bus_element_type_method,
+                                    { NULL, get_home_vap, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_IGNITEWIFI, bus_element_type_method,
+                                    { NULL, get_ignitewifi, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_IGNITE_LQ_THRESHOLD, bus_element_type_method,
+                                    { get_ignite_link_quality_threshold, set_ignite_link_quality_threshold, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+                                { WIFI_BUS_HOTSPOT_UP, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, hotspot_event_handler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_BUS_HOTSPOT_DOWN, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, hotspot_event_handler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_KICK_MAC, bus_element_type_method,
+                                    { NULL, set_kickassoc_command, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+                                { WIFI_WEBCONFIG_GET_NULL_SUBDOC, bus_element_type_method,
+                                    { get_null_subdoc_data, NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_STA_TRIGGER_DISCONNECTION, bus_element_type_method,
+                                    { get_sta_disconnection, set_sta_disconnection, NULL, NULL, NULL, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_uint32, true, 0, 0, 0, NULL } },
+                                { WIFI_STA_SELFHEAL_CONNECTION_TIMEOUT, bus_element_type_event,
+                                    { get_sta_connection_timeout, NULL, NULL, NULL, NULL, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_boolean, false, 0, 0, 0, NULL } },
+                                { WIFI_ACCESSPOINT_TABLE, bus_element_type_table,
+                                    { NULL, NULL, ap_table_addrowhandler, ap_table_removerowhandler,NULL, NULL}, slow_speed, num_of_vaps,
+                                    { bus_data_type_object, false, 0, 0, 0, NULL } },
+                                { WIFI_ACCESSPOINT_DEV_CONNECTED, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_ACCESSPOINT_DEV_DISCONNECTED, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_ACCESSPOINT_DEV_DEAUTH,bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_ACCESSPOINT_RADIUS_CONNECTED_ENDPOINT, bus_element_type_method,
+                                    { ap_get_radius_connected_endpoint, NULL, NULL, NULL, NULL, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false , 0, 0, 0, NULL } },
+                                { WIFI_NOTIFY_INTEROP_DETAILS, bus_element_type_method,
+                                    { ap_get_interop_details, NULL, NULL, NULL, NULL, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false , 0, 0, 0, NULL } },
+                                { WIFI_ACCESSPOINT_DIAGDATA, bus_element_type_event,
+                                    { ap_get_handler, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_ACCESSPOINT_FORCE_APPLY, bus_element_type_method,
+                                    { NULL, set_force_vap_apply, NULL, NULL, NULL, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_boolean, true, 0, 0, 0, NULL } },
+                                { WIFI_ACCESSPOINT_RAWFRAME_MGMT_ACTION_RX, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, high_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { WIFI_ACCESSPOINT_RAWFRAME_MGMT_ACTION_TX, bus_element_type_method,
+                                    { NULL, send_action_frame, NULL, NULL, NULL, NULL}, high_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, true, 0, 0, 0, NULL } },
+                                { ACCESSPOINT_ASSOC_REQ_EVENT, bus_element_type_method,
+                                    { NULL, NULL, NULL, NULL, NULL, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+                                { WIFI_CLIENT_GET_ASSOC_REQ,bus_element_type_method,
+                                    { NULL, NULL, NULL, NULL, NULL, get_client_assoc_request_multi}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, true, 0, 0, 0, NULL } },
+                                { WIFI_COLLECT_STATS_TABLE, bus_element_type_table,
+                                    { NULL, NULL, stats_table_addrowhandler, stats_table_removerowhandler, NULL, NULL}, slow_speed, num_of_radio,
+                                    { bus_data_type_object, false, 0, 0, 0, NULL } },
+                                { WIFI_COLLECT_STATS_RADIO_ON_CHANNEL_STATS, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { WIFI_COLLECT_STATS_RADIO_OFF_CHANNEL_STATS, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { WIFI_COLLECT_STATS_RADIO_FULL_CHANNEL_STATS, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { WIFI_COLLECT_STATS_NEIGHBOR_ON_CHANNEL_STATS, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { WIFI_COLLECT_STATS_NEIGHBOR_OFF_CHANNEL_STATS, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { WIFI_COLLECT_STATS_NEIGHBOR_FULL_CHANNEL_STATS, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { WIFI_COLLECT_STATS_RADIO_DIAGNOSTICS, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { WIFI_COLLECT_STATS_RADIO_TEMPERATURE, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { WIFI_COLLECT_STATS_VAP_TABLE, bus_element_type_table,
+                                    { NULL, NULL, stats_table_addrowhandler, stats_table_removerowhandler, NULL, NULL}, slow_speed, num_of_vaps,
+                                    { bus_data_type_object, false, 0, 0, 0, NULL } },
+                                { WIFI_COLLECT_STATS_ASSOC_DEVICE_STATS, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { WIFI_CSA_BEACON_FRAME_RECEIVED, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, high_speed, ZERO_TABLE,
+                                    { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { WIFI_ACCESSPOINT_GET_NASTA, bus_element_type_method,
+                                    { NULL, NULL, NULL, NULL, NULL, get_NaSta }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+                                { WIFI_NASTA_RESPONSE_EVENT, bus_element_type_event,
+                                    { NULL, NULL, NULL, NULL, eventSubHandler, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
+                                { WIFI_REPURPOSED_VAP_ENABLE, bus_element_type_property,
+                                    { get_repurposed_vap_param, set_repurposed_vap_enable, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_boolean, true, 0, 0, 0, NULL } },
+                                { WIFI_REPURPOSED_VAP_STATUS, bus_element_type_event,
+                                    { get_repurposed_vap_param, NULL, NULL, NULL, eventSubHandler, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_boolean, false, 0, 0, 0, NULL } },
     };
 
     rc = get_bus_descriptor()->bus_open_fn(&ctrl->handle, component_name);

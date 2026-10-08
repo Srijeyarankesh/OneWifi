@@ -864,6 +864,12 @@ int wifidb_update_wifi_macfilter_config(char *macfilter_key, acl_entry_t *config
     return 0;
 }
 
+int wifidb_reload_wifi_vap_config(char *vap_name)
+{
+    // nothing is persisted without wifidb
+    return RETURN_ERR;
+}
+
 void wifidb_cleanup()
 {
 

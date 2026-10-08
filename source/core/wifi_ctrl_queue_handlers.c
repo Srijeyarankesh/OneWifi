@@ -194,9 +194,12 @@ void process_btm_request_send_event(void *data, uint32_t len) {
         btmReq.numCandidates = 0;
     }
 
-    if (isVapRepurposeTarget(msg->ap_index)) {
+    if (isVapRepurposed(msg->ap_index)) {
+        wifi_util_info_print(WIFI_CTRL, "%s:%d steering is disabled on vap_index:%d\n", __func__,
+            __LINE__, msg->ap_index);
         return;
     }
+
     ret = wifi_hal_setBTMRequest(msg->ap_index, msg->sta_mac, &btmReq);
     if (ret != RETURN_OK) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d wifi_hal_setBTMRequest failed (ret=%d)\n",__func__, __LINE__, ret);
@@ -915,7 +918,7 @@ void process_xfinity_vaps(wifi_hotspot_action_t param, bool hs_evt)
             lnf_6g_vap = lnf_vap_info;
         }
         for(unsigned int j = 0; j < wifi_vap_map->num_vaps; ++j) {
-            if (!vap_svc_is_public(wifi_vap_map->vap_array[j].vap_index)) {
+            if (vap_svc_is_public(wifi_vap_map->vap_array[j].vap_index) == false) {
                 continue;
             }
 
@@ -1746,13 +1749,14 @@ int add_acl_entry_to_vap(char *mac_str, int vap_index, int reason, long long int
     mac_address_t mac_addr;
     char macfilterkey[128] = { 0 };
 
-    if (isVapRepurposeTarget(vap_index)) {
-        /* Public greylist/prefer-private ACLs never belong on the companion. */
+    if (mac_str == NULL) {
+        wifi_util_dbg_print(WIFI_CTRL, "%s:%d Invalid MAC string\n", __func__, __LINE__);
         return RETURN_ERR;
     }
 
-    if (mac_str == NULL) {
-        wifi_util_dbg_print(WIFI_CTRL, "%s:%d Invalid MAC string\n", __func__, __LINE__);
+    if (isVapRepurposed(vap_index)) {
+        wifi_util_dbg_print(WIFI_CTRL, "%s:%d vap_index %d is repurposed\n", __func__, __LINE__,
+            vap_index);
         return RETURN_ERR;
     }
 
@@ -1876,7 +1880,7 @@ void process_greylist_mac_filter(void *data)
                 continue;
             }
 
-            if (!vap_svc_is_public(rdk_vap_info->vap_index) ||
+            if (vap_svc_is_public(rdk_vap_info->vap_index) == false ||
                 !wifi_vap_map->vap_array[itrj].u.bss_info.enabled) {
                 wifi_util_info_print(WIFI_CTRL, "%s:%d VAP %s not enabled\n", __func__, __LINE__,
                     rdk_vap_info->vap_name);
@@ -2009,13 +2013,11 @@ void lm_notify_disassoc(assoc_dev_data_t *assoc_dev_data, unsigned int vap_index
         return;
     }
 
-    /* Disable may clear the role before its queued disconnect indications arrive. */
     if (vap_svc_is_public(vap_index)) {
         if (notify_hotspot(&p_wifi_mgr->ctrl, assoc_dev_data) != RETURN_OK) {
             wifi_util_error_print(WIFI_CTRL,"%s:%d Unable to send notification to Hotspot\n", __func__, __LINE__);
         }
-    } else if (((isVapPrivateNetwork(vap_index) || isVapRepurposeTarget(vap_index))) ||
-        (isVapXhs(vap_index))) {
+    } else if ((isVapPrivateNetwork(vap_index)) || (isVapXhs(vap_index))) {
         //Code to Publish to LMLite
         if (assoc_dev_data->dev_stats.cli_MLDEnable == true && assoc_dev_data->association_link == false) {
             return;
@@ -2181,10 +2183,9 @@ void process_disassoc_device_event(void *data)
         }
     }
 
-    if (new_count != old_count &&
-        ((isVapPrivateNetwork(rdk_vap_info->vap_index) ||
-             isVapRepurposeTarget(rdk_vap_info->vap_index)) ||
-            isVapXhs(rdk_vap_info->vap_index))) {
+    if (new_count != old_count && 
+        (isVapPrivateNetwork(rdk_vap_info->vap_index) ||
+         isVapXhs(rdk_vap_info->vap_index))) {
         if (notify_associated_entries(&p_wifi_mgr->ctrl, rdk_vap_info->vap_index, 
                                       new_count, old_count) != RETURN_OK) {
             wifi_util_error_print(WIFI_CTRL,
@@ -2252,9 +2253,7 @@ void check_and_remove_mac_on_other_vaps(assoc_dev_data_t *assoc_data)
                     return;
                 }
 
-                if (((isVapPrivateNetwork(rdk_vap_info->vap_index) ||
-                         isVapRepurposeTarget(rdk_vap_info->vap_index)) ||
-                        isVapXhs(rdk_vap_info->vap_index))) {
+                if ((isVapPrivateNetwork(rdk_vap_info->vap_index) || isVapXhs(rdk_vap_info->vap_index))) {
                     if (notify_associated_entries(&p_wifi_mgr->ctrl, rdk_vap_info->vap_index,
                                                   new_count, old_count) != RETURN_OK) {
                         wifi_util_error_print(WIFI_CTRL,
@@ -2508,8 +2507,7 @@ static void assoc_dev_event(assoc_dev_data_t *assoc_data)
         new_count = old_count + 1;
         wifi_util_info_print(WIFI_CTRL,"%s:%d Device %s associated with vapindex %d associated clients count : %d\n", __func__, __LINE__, mac_str, rdk_vap_info->vap_index, new_count);
 
-        if (((isVapPrivateNetwork(rdk_vap_info->vap_index)) ||
-                (isVapXhs(rdk_vap_info->vap_index)))) {
+        if (((isVapPrivateNetwork(rdk_vap_info->vap_index)) || (isVapXhs(rdk_vap_info->vap_index)))){
             if (notify_associated_entries(&p_wifi_mgr->ctrl, rdk_vap_info->vap_index, new_count, old_count) != RETURN_OK) {
                 wifi_util_error_print(WIFI_CTRL,"%s:%d Unable to send notification for associated entries\n", __func__, __LINE__);
             }
@@ -2522,6 +2520,7 @@ static void assoc_dev_event(assoc_dev_data_t *assoc_data)
             wifi_util_info_print(WIFI_CTRL, "Client %s is connected to hotspot index %d with rssi=%d  and SNR=%d\n",
               mac_str,rdk_vap_info->vap_index,tmp_assoc_dev_data->dev_stats.cli_RSSI,
               tmp_assoc_dev_data->dev_stats.cli_SNR);
+
         }
     }
     pthread_mutex_unlock(rdk_vap_info->associated_devices_lock);
@@ -2607,12 +2606,13 @@ static void process_wps_results_event(wifi_wps_event_t *wps_event)
     unsigned int vap_index = wps_event->vap_index;
     bool wps_push_button = false;
 
-    if (isVapRepurposeTarget(vap_index)) {
-        return;
-    }
-
     wifi_util_info_print(WIFI_CTRL, "%s:%d wps event[%d] is received\n", __func__, __LINE__,
         wps_event->event);
+
+    // wps is disabled on the repurposed vap, whose configuration is never persisted
+    if (isVapRepurposed(vap_index)) {
+        return;
+    }
 
     switch (wps_event->event) {
     case wifi_wps_ev_pbc_active:
@@ -2650,8 +2650,15 @@ static void process_wps_results_event(wifi_wps_event_t *wps_event)
 void process_factory_reset_command(bool type)
 {
     wifi_mgr_t *p_wifi_mgr = get_wifimgr_obj();
+    int repurposed_vap_index = getRepurposeTargetVapIndex();
+    bool repurposed = (repurposed_vap_index >= 0) && isVapRepurposed(repurposed_vap_index);
     p_wifi_mgr->ctrl.factory_reset = type;
     wifi_util_info_print(WIFI_CTRL,"%s:%d and type is %d\n",__func__,__LINE__,type);
+
+    // the repurposed vap is disabled by default, the hotspot vap is restored while wifidb has it
+    if (repurposed) {
+        webconfig_hal_repurposed_vap_apply(&p_wifi_mgr->ctrl, false, NULL);
+    }
 
     bool db_consolidated = is_db_consolidated();
 
@@ -2670,16 +2677,9 @@ void process_factory_reset_command(bool type)
     get_wifidb_obj()->desc.init_tables_fn();
     get_wifidb_obj()->desc.init_default_value_fn();
     wifi_util_dbg_print(WIFI_DB,"WIFI Factory reset initiated default value %d\n",__LINE__);
-    if (start_wifi_services() != RETURN_OK) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to reconstruct repurposed VAP after reset\n",
-            __func__, __LINE__);
-    } else {
-        bool replay_status = true;
-        if (push_event_to_ctrl_queue(&replay_status, sizeof(replay_status), wifi_event_type_command,
-                wifi_event_type_repurposed_vap_status, NULL) != RETURN_OK) {
-            wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to queue reset repurposed status\n",
-                __func__, __LINE__);
-        }
+    start_wifi_services();
+    if (repurposed) {
+        notify_repurposed_vap_status(&p_wifi_mgr->ctrl, false);
     }
     wifi_util_dbg_print(WIFI_DB,"WIFI Factory reset started wifidb monitor %d\n",__LINE__);
     get_wifidb_obj()->desc.start_monitor_fn();
@@ -3206,10 +3206,12 @@ void process_xfi_tel_enable_rfc(bool type)
 
 void process_wps_command_event(unsigned int vap_index)
 {
-    if (isVapRepurposeTarget(vap_index)) {
+#ifdef FEATURE_SUPPORT_WPS
+    if (isVapRepurposed(vap_index)) {
+        wifi_util_info_print(WIFI_CTRL, "%s:%d wps is disabled on vap_index:%d\n", __func__,
+            __LINE__, vap_index);
         return;
     }
-#ifdef FEATURE_SUPPORT_WPS
     wifi_util_info_print(WIFI_CTRL,"%s:%d wifi wps test vap index = %d\n",__func__, __LINE__, vap_index);
     wifi_hal_setApWpsButtonPush(vap_index);
 #endif
@@ -3226,9 +3228,12 @@ void process_wps_pin_command_event(void *data)
 
     wifi_util_info_print(WIFI_CTRL,"%s:%d wifi wps pin vap index = %d, wps_pin:%s\n",__func__, __LINE__,
                                         wps_config->vap_index, wps_config->wps_pin);
-    if (!isVapRepurposeTarget(wps_config->vap_index)) {
-        wifi_hal_setApWpsPin(wps_config->vap_index, wps_config->wps_pin);
+    if (isVapRepurposed(wps_config->vap_index)) {
+        wifi_util_info_print(WIFI_CTRL, "%s:%d wps is disabled on vap_index:%d\n", __func__,
+            __LINE__, wps_config->vap_index);
+        return;
     }
+    wifi_hal_setApWpsPin(wps_config->vap_index, wps_config->wps_pin);
 #endif
 }
 
@@ -3381,10 +3386,6 @@ void process_device_mode_command_event(int device_mode)
             }
             wifi_util_info_print(WIFI_CTRL, "%s:%d: start gw vaps\n", __func__, __LINE__);
             start_gateway_vaps(WIFI_ALL_RADIO_INDICES);
-            if (webconfig_reapply_repurposed_vap(ctrl) != RETURN_OK) {
-                wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to restart repurposed VAP\n",
-                    __func__, __LINE__);
-            }
         }
     }
     ctrl->webconfig_state |= ctrl_webconfig_state_vap_all_cfg_rsp_pending;
@@ -4419,26 +4420,6 @@ void handle_command_event(wifi_ctrl_t *ctrl, void *data, unsigned int len,
         break;
     case wifi_event_type_radius_grey_list_rfc:
         process_radius_grey_list_rfc(*(bool *)data);
-        break;
-    case wifi_event_type_repurposed_vap_rfc:
-        if (data == NULL || len != sizeof(bool) ||
-            webconfig_set_repurposed_vap(ctrl, *(bool *)data) != RETURN_OK) {
-            wifi_util_error_print(WIFI_CTRL, "%s:%d Repurposed VAP update failed\n", __func__,
-                __LINE__);
-        }
-        break;
-    case wifi_event_type_repurposed_vap_status:
-        if (ctrl->ctrl_initialized) {
-            wifi_mgr_t *mgr = get_wifimgr_obj();
-            int vap_index = convert_vap_name_to_index(&mgr->hal_cap.wifi_prop, "hotspot_secure_2g");
-            rdk_wifi_vap_info_t *rdk_vap = vap_index >= 0 ? get_wifidb_rdk_vap_info(vap_index) :
-                                                            NULL;
-
-            /* Failed recovery leaves the old role in cache until a forced apply succeeds. */
-            if (rdk_vap != NULL && !rdk_vap->force_apply) {
-                publish_repurposed_vap_status(isVapRepurposed(vap_index));
-            }
-        }
         break;
     case wifi_event_type_wifi_passpoint_rfc:
         process_wifi_passpoint_rfc(*(bool *)data);

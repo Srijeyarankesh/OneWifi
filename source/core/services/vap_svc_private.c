@@ -88,20 +88,10 @@ static int configure_lnf_psk_radius_from_hotspot(wifi_vap_info_t *vap_info)
 int vap_svc_private_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_info_map_t *map,
     rdk_wifi_vap_info_t *rdk_vap_info)
 {
-    bool enabled;
+    bool enabled, repurposed;
     unsigned int i;
     wifi_vap_info_map_t *p_tgt_vap_map = NULL;
     int ret;
-
-    for (i = 0; i < map->num_vaps; i++) {
-        if (isVapRepurposeTarget(map->vap_array[i].vap_index) &&
-            strcmp(map->vap_array[i].repurposed_vap_name, WIFI_REPURPOSED_PRIVATE_2G_NAME) != 0 &&
-            (map->vap_array[i].repurposed_vap_name[0] != '\0' ||
-                map->vap_array[i].u.bss_info.enabled)) {
-            /* Only a derived private configuration or the disabled dormant VAP is accepted. */
-            return RETURN_ERR;
-        }
-    }
     p_tgt_vap_map = (wifi_vap_info_map_t *) malloc( sizeof(wifi_vap_info_map_t) );
     if (p_tgt_vap_map == NULL) {
         wifi_util_error_print(WIFI_CTRL,"%s:%d Failed to allocate memory.\n", __FUNCTION__,__LINE__);
@@ -113,10 +103,6 @@ int vap_svc_private_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_in
         memcpy((unsigned char *)&p_tgt_vap_map->vap_array[0], (unsigned char *)&map->vap_array[i],
                     sizeof(wifi_vap_info_t));
         p_tgt_vap_map->num_vaps = 1;
-        if (isVapRepurposeTarget(map->vap_array[i].vap_index)) {
-            memset(&p_tgt_vap_map->vap_array[0].u.bss_info.wps, 0, sizeof(wifi_wps_t));
-            p_tgt_vap_map->vap_array[0].u.bss_info.wpsPushButton = false;
-        }
 
         // VAP is enabled in HAL if it is present in VIF_Config and enabled. Absent VAP entries are
         // saved to VAP_Config with exist flag set to 0 and default values.
@@ -145,36 +131,20 @@ int vap_svc_private_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_in
         }
 #endif /* !defined(_PP203X_PRODUCT_REQ_) && !defined(_GREXT02ACTS_PRODUCT_REQ_) */
         p_tgt_vap_map->vap_array[0].u.bss_info.enabled &= rdk_vap_info[i].exists;
-        if (isVapRepurposeTarget(map->vap_array[i].vap_index)) {
-            /* Prepare the BSS while down; copy its private ACL before any activation. */
-            p_tgt_vap_map->vap_array[0].u.bss_info.enabled = false;
+
+        repurposed = isVapRepurposeTarget(map->vap_array[i].vap_index) &&
+            (strcmp(map->vap_array[i].repurposed_vap_name, WIFI_REPURPOSED_PRIVATE_2G_NAME) == 0);
+        if (repurposed) {
+            // the shared mac filter is in place before the repurposed vap starts beaconing
+            sync_repurposed_vap_acl(map->vap_array[i].vap_index, true);
         }
 
         ret = wifi_hal_createVAP(radio_index, p_tgt_vap_map);
         if (ret != RETURN_OK) {
             wifi_util_error_print(WIFI_CTRL,"%s: wifi vap create failure: radio_index:%d vap_index:%d\n",__FUNCTION__,
                                                 radio_index, map->vap_array[i].vap_index);
-            if (isVapRepurposeTarget(map->vap_array[i].vap_index)) {
-                goto repurposed_apply_failed;
-            }
             free(p_tgt_vap_map);
             return ret;
-        }
-
-        if (isVapRepurposeTarget(map->vap_array[i].vap_index)) {
-            ret = update_repurposed_vap_acl(map->vap_array[i].vap_index,
-                strcmp(map->vap_array[i].repurposed_vap_name, WIFI_REPURPOSED_PRIVATE_2G_NAME) ==
-                    0);
-            if (ret != RETURN_OK) {
-                goto repurposed_apply_failed;
-            }
-            if (enabled && rdk_vap_info[i].exists) {
-                p_tgt_vap_map->vap_array[0].u.bss_info.enabled = true;
-                ret = wifi_hal_createVAP(radio_index, p_tgt_vap_map);
-                if (ret != RETURN_OK) {
-                    goto repurposed_apply_failed;
-                }
-            }
         }
 
         p_tgt_vap_map->vap_array[0].u.bss_info.enabled = enabled;
@@ -207,39 +177,19 @@ int vap_svc_private_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_in
         }
         memcpy((unsigned char *)&map->vap_array[i], (unsigned char *)&p_tgt_vap_map->vap_array[0],
                     sizeof(wifi_vap_info_t));
-        if (isVapRepurposeTarget(map->vap_array[i].vap_index)) {
-            /* The companion is derived at runtime; never persist its credentials. */
-            ret = update_global_cache(p_tgt_vap_map, &rdk_vap_info[i]);
-            if (ret != RETURN_OK) {
-                goto repurposed_apply_failed;
-            }
+        if (repurposed) {
+            // derived from the private vaps at runtime, it is never persisted
+            update_global_cache(p_tgt_vap_map, &rdk_vap_info[i]);
+            sync_repurposed_vap_acl(map->vap_array[i].vap_index, true);
             continue;
         }
-        ret = get_wifidb_obj()->desc.update_wifi_vap_info_fn(
-            getVAPName(map->vap_array[i].vap_index), &map->vap_array[i], &rdk_vap_info[i]);
-        if (ret == RETURN_OK) {
-            ret = get_wifidb_obj()->desc.update_wifi_interworking_cfg_fn(
-                getVAPName(map->vap_array[i].vap_index),
+        get_wifidb_obj()->desc.update_wifi_vap_info_fn(getVAPName(map->vap_array[i].vap_index), &map->vap_array[i],
+            &rdk_vap_info[i]);
+        get_wifidb_obj()->desc.update_wifi_interworking_cfg_fn(getVAPName(map->vap_array[i].vap_index),
                 &map->vap_array[i].u.bss_info.interworking);
-        }
-        if (ret == RETURN_OK) {
-            ret = get_wifidb_obj()->desc.update_wifi_security_config_fn(
-                getVAPName(map->vap_array[i].vap_index), &map->vap_array[i].u.bss_info.security);
-        }
-        if (ret != RETURN_OK) {
-            free(p_tgt_vap_map);
-            return ret;
-        }
-        continue;
+        get_wifidb_obj()->desc.update_wifi_security_config_fn(getVAPName(map->vap_array[i].vap_index),
+                &map->vap_array[i].u.bss_info.security);
 
-    repurposed_apply_failed:
-        p_tgt_vap_map->vap_array[0].u.bss_info.enabled = false;
-        if (wifi_hal_createVAP(radio_index, p_tgt_vap_map) != RETURN_OK) {
-            wifi_util_error_print(WIFI_CTRL,
-                "%s:%d Failed to disable companion after apply failure\n", __func__, __LINE__);
-        }
-        free(p_tgt_vap_map);
-        return ret;
     }
     free(p_tgt_vap_map);
 

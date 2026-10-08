@@ -922,11 +922,6 @@ int start_wifi_services(void)
         }
     }
 
-    if (ctrl->network_mode == rdk_dev_mode_type_gw ||
-        ctrl->network_mode == rdk_dev_mode_type_em_colocated_node) {
-        /* Rebuild from the RFC and private cache after native services and radios are ready. */
-        return webconfig_reapply_repurposed_vap(ctrl);
-    }
     return RETURN_OK;
 }
 
@@ -2021,7 +2016,6 @@ int validate_and_sync_private_vap_credentials()
 int start_wifi_ctrl(wifi_ctrl_t *ctrl)
 {
     int monitor_ret = 0;
-    int repurposed_ret;
 
     monitor_ret = init_wifi_monitor();
 
@@ -2031,11 +2025,10 @@ int start_wifi_ctrl(wifi_ctrl_t *ctrl)
     init_wifi_mld_groups();
 #endif
 
-    repurposed_ret = start_wifi_services();
-    if (repurposed_ret != RETURN_OK) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to apply repurposed VAP at startup\n",
-            __func__, __LINE__);
-    }
+    /* Derive the repurposed VAP from the settled private VAPs before the services start them. */
+    init_repurposed_vap_config();
+
+    start_wifi_services();
 
     ctrl->webconfig_state = ctrl_webconfig_state_vap_all_cfg_rsp_pending;
     telemetry_bootup_time_wifibroadcast(); //Telemetry Marker for btime_wifibcast_split
@@ -2084,14 +2077,6 @@ int start_wifi_ctrl(wifi_ctrl_t *ctrl)
     webconfig_send_full_associate_status(ctrl);
     ctrl->exit_ctrl = false;
     ctrl->ctrl_initialized = true;
-    if (repurposed_ret == RETURN_OK) {
-        bool replay_status = true;
-        if (push_event_to_ctrl_queue(&replay_status, sizeof(replay_status), wifi_event_type_command,
-                wifi_event_type_repurposed_vap_status, NULL) != RETURN_OK) {
-            wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to queue initial repurposed status\n",
-                __func__, __LINE__);
-        }
-    }
     init_ignite_function();
     register_endpoint_components(ctrl);
     ctrl_queue_loop(ctrl);
@@ -2935,7 +2920,7 @@ bool get_wifi_public_vap_enable_status(void)
         }
 
         for (j = 0; j < vap_map->num_vaps; j++) {
-            if (isVapRepurposeTarget(vap_map->vap_array[j].vap_index)) {
+            if (isVapRepurposed(vap_map->vap_array[j].vap_index)) {
                 continue;
             }
             if ((isVapHotspotOpen(vap_map->vap_array[j].vap_index) == TRUE)
@@ -3409,25 +3394,21 @@ UINT getApFromRadioIndex(UINT radioIndex, char* vap_prefix)
     return 0;
 }
 
-/* The physical identity remains public in HAL capabilities and external schemas. */
-bool isVapRepurposeTarget(unsigned int vap_index)
+/* Secure 2.4 GHz hotspot VAP that can be repurposed into the private network, -1 if none */
+int getRepurposeTargetVapIndex(void)
 {
-#if (defined(_XB7_PRODUCT_REQ_) && defined(_COSA_BCM_ARM_) && !defined(_INTEL_WAV_)) || \
-    defined(_XB8_PRODUCT_REQ_) || defined(_XB10_PRODUCT_REQ_)
-    wifi_mgr_t *mgr = get_wifimgr_obj();
-    int target;
-
-    if (mgr == NULL) {
-        return false;
-    }
-    target = convert_vap_name_to_index(&mgr->hal_cap.wifi_prop, "hotspot_secure_2g");
-    return target >= 0 && vap_index == (unsigned int)target;
-#else
-    (void)vap_index;
-    return false;
-#endif
+    return convert_vap_name_to_index(&(get_wifimgr_obj())->hal_cap.wifi_prop,
+        VAP_PREFIX_HOTSPOT_SECURE "_2g");
 }
 
+bool isVapRepurposeTarget(unsigned int vap_index)
+{
+    int target = getRepurposeTargetVapIndex();
+
+    return (target >= 0) && (vap_index == (unsigned int)target);
+}
+
+/* The repurposed role is held only in the runtime cache, it is never persisted. */
 bool isVapRepurposed(unsigned int vap_index)
 {
     wifi_vap_info_t *vap;
@@ -3436,7 +3417,8 @@ bool isVapRepurposed(unsigned int vap_index)
         return false;
     }
     vap = get_wifidb_vap_parameters(vap_index);
-    return vap != NULL && strcmp(vap->repurposed_vap_name, WIFI_REPURPOSED_PRIVATE_2G_NAME) == 0;
+    return (vap != NULL) &&
+        (strcmp(vap->repurposed_vap_name, WIFI_REPURPOSED_PRIVATE_2G_NAME) == 0);
 }
 
 bool isVapPrivateNetwork(unsigned int vap_index)
