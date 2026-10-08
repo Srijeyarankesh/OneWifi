@@ -927,7 +927,7 @@ int upload_client_telemetry_data(wifi_app_t *app, unsigned int num_devs, unsigne
         wifi_util_error_print(WIFI_CTRL, "%s:%d NULL rdk_vap_info pointer\n", __func__, __LINE__);
         return RETURN_ERR;
     }
-    if (strlen(vap_info->repurposed_vap_name) != 0 && !isVapRepurposeTarget(vap_index)) {
+    if (strlen(vap_info->repurposed_vap_name) != 0 && !isVapRepurposed(vap_index)) {
         wifi_util_info_print(WIFI_APPS, "Managed wifi is enabled on the device\n");
         is_managed_wifi = true;
     }
@@ -1639,7 +1639,7 @@ void update_clientdiagdata(wifi_app_t *app, unsigned int num_devs, int vap_idx,
 
     // check call
     upload_client_debug_stats_whix(vap_idx);
-    if (isVapHotspotSecure(vap_idx) && !isVapRepurposeTarget(vap_idx)) {
+    if (isVapHotspotSecure(vap_idx) && !isVapRepurposed(vap_idx)) {
         upload_ap_telemetry_anqp_whix(vap_idx);
     }
 #ifdef CONFIG_IEEE80211BE

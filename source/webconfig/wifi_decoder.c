@@ -4163,6 +4163,36 @@ webconfig_error_t decode_mac_object(rdk_wifi_vap_info_t *rdk_vap_info, cJSON *ob
     return webconfig_error_none;
 }
 
+webconfig_error_t decode_repurposed_vap_object(const cJSON *json, webconfig_repurposed_vap_t *config)
+{
+    const cJSON *obj_array, *obj, *param;
+
+    if ((json == NULL) || (config == NULL)) {
+        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: NULL pointer\n", __func__, __LINE__);
+        return webconfig_error_decode;
+    }
+
+    // optional object, absence keeps the current setting
+    *config = webconfig_repurposed_vap_unchanged;
+    obj_array = cJSON_GetObjectItem(json, "RepurposedVapConfig");
+    if (obj_array == NULL) {
+        return webconfig_error_none;
+    }
+
+    if ((cJSON_IsArray(obj_array) == false) || (cJSON_GetArraySize(obj_array) != 1)) {
+        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: Validation failed for RepurposedVapConfig\n",
+            __func__, __LINE__);
+        return webconfig_error_decode;
+    }
+
+    obj = cJSON_GetArrayItem(obj_array, 0);
+    decode_param_bool(obj, "Enabled", param);
+    *config = cJSON_IsTrue(param) ? webconfig_repurposed_vap_enable :
+                                    webconfig_repurposed_vap_disable;
+
+    return webconfig_error_none;
+}
+
 webconfig_error_t decode_levl_object(const cJSON *levl_cfg, levl_config_t *levl_config)
 {
     const cJSON  *param;

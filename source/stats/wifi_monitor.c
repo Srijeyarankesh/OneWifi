@@ -962,13 +962,13 @@ void telemetry_event_code_count(interop_data_t *sta1, int vapindex, char *mac, c
     }
 	wifi_util_info_print(WIFI_MON, "%s:%d station found for mac :%s vap index:%d ,rssi:%d, noise:%d snr:%d channel_util:%d \n", __func__, __LINE__, mac, vapindex, sta1->rssi, sta1->noise_floor, sta1->snr, sta1->channel_util);
 	wifi_util_dbg_print(WIFI_MON, "%s:%d station found for mac :%s vap index:%d , eapol_msg_type:%d, eapol_frame_type:%d eapol_0:%d eapol_1:%d eapol_2:%d eapol_3:%d eapol_4:%d eapol_5:%d \n", __func__, __LINE__, mac, vapindex, sta1->eapol_msg_type, sta1->eapol_frame_type, sta1->eapol_status_type_counts[0], sta1->eapol_status_type_counts[1], sta1->eapol_status_type_counts[2], sta1->eapol_status_type_counts[3], sta1->eapol_status_type_counts[4], sta1->eapol_status_type_counts[5]);
-        if (xfi_enable && ((isVapHotspot(vapindex) && !isVapRepurposeTarget(vapindex)))) {
-            wifi_util_info_print(WIFI_MON, "xfi_enable_rfc is enabled\n");
-            telemetry_event_access_accept_count(sta1, vapindex, mac, ap);
-            telemetry_event_eap_success_count(sta1, vapindex, mac, ap);
-            telemetry_event_eap_failure_count(sta1, vapindex, mac, ap);
-        }
-        telemetry_event_eap_reason_count(sta1, vapindex, mac, ap);
+	if (xfi_enable && (isVapHotspot(vapindex) && !isVapRepurposed(vapindex))) {
+        wifi_util_info_print(WIFI_MON, "xfi_enable_rfc is enabled\n");
+        telemetry_event_access_accept_count(sta1, vapindex, mac, ap);
+        telemetry_event_eap_success_count(sta1, vapindex, mac, ap);
+        telemetry_event_eap_failure_count(sta1, vapindex, mac, ap);
+	}
+	telemetry_event_eap_reason_count(sta1, vapindex, mac, ap);
 	telemetry_event_eap_ap_reason_count(sta1, vapindex, mac, ap);
 	telemetry_event_handshake_count(sta1, vapindex, mac, ap);
     telemetry_event_interop_extra_details(sta1, vapindex, mac, ap);
@@ -5043,9 +5043,9 @@ int init_wifi_monitor()
     for (i = 0; i < getTotalNumberVAPs(); i++) {
         UINT vap_index = VAP_INDEX(mgr->hal_cap, i);
         wifi_util_dbg_print(WIFI_MON, "%s: incoming vapIndex:%d \n", __FUNCTION__, vap_index);
-        if (!(isVapPrivateNetwork(vap_index) || isVapHotspotSecure5g(vap_index) ||
-                isVapHotspotSecure6g(vap_index) || isVapHotspotOpen5g(vap_index) ||
-                isVapHotspotOpen6g(vap_index))) {
+        if (!(isVapPrivate(vap_index) || isVapRepurposeTarget(vap_index) ||
+                isVapHotspotSecure5g(vap_index) || isVapHotspotSecure6g(vap_index) ||
+                isVapHotspotOpen5g(vap_index) || isVapHotspotOpen6g(vap_index))) {
             continue;
         }
         wifi_util_dbg_print(WIFI_MON, "%s: creating hashmap for vapIndex:%d \n", __FUNCTION__, vap_index);
@@ -5258,9 +5258,9 @@ void deinit_wifi_monitor()
 
     for (i = 0; i < getTotalNumberVAPs(); i++) {
         UINT vap_index = VAP_INDEX(mgr->hal_cap, i);
-        if (!(isVapPrivateNetwork(vap_index) || isVapHotspotSecure5g(vap_index) ||
-                isVapHotspotSecure6g(vap_index) || isVapHotspotOpen5g(vap_index) ||
-                isVapHotspotOpen6g(vap_index))) {
+        if (!(isVapPrivate(vap_index) || isVapRepurposeTarget(vap_index) ||
+                isVapHotspotSecure5g(vap_index) || isVapHotspotSecure6g(vap_index) ||
+                isVapHotspotOpen5g(vap_index) || isVapHotspotOpen6g(vap_index))) {
             continue;
         }
         if(g_monitor_module.bssid_data[i].interop_sta_map != NULL) {

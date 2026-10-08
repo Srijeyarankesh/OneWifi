@@ -197,6 +197,7 @@ vap_svc_t *get_svc_by_name(wifi_ctrl_t *ct, char *vap_name);
 
 int process_ext_connect_algorithm(vap_svc_t *svc);
 int update_global_cache(wifi_vap_info_map_t *tgt_vap_map, rdk_wifi_vap_info_t *rdk_vap_info);
+int sync_repurposed_vap_acl(unsigned int vap_index, bool apply_to_hal);
 
 #ifdef __cplusplus
 }

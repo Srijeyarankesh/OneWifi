@@ -1440,186 +1440,18 @@ static int push_blob_data(webconfig_subdoc_data_t *data, webconfig_subdoc_type_t
     return RETURN_OK;
 }
 
-/* Merge the new private schema over the normal private snapshot. Other bands retain
- * their settings; the cloud still uses the existing privatessid transport/envelope. */
-static int merge_private_blob_object(cJSON *target, const cJSON *source)
-{
-    const cJSON *item, *previous;
-    cJSON *old, *copy;
-
-    if (!cJSON_IsObject(target) || !cJSON_IsObject(source)) {
-        return RETURN_ERR;
-    }
-    cJSON_ArrayForEach(item, source) {
-        if (item->string == NULL) {
-            return RETURN_ERR;
-        }
-        for (previous = source->child; previous != item; previous = previous->next) {
-            if (previous->string != NULL && strcmp(previous->string, item->string) == 0) {
-                return RETURN_ERR;
-            }
-        }
-        old = cJSON_GetObjectItemCaseSensitive(target, item->string);
-        if (cJSON_IsObject(old) && cJSON_IsObject(item)) {
-            if (merge_private_blob_object(old, item) != RETURN_OK) {
-                return RETURN_ERR;
-            }
-            continue;
-        }
-        copy = cJSON_Duplicate(item, true);
-        if (copy == NULL) {
-            return RETURN_ERR;
-        }
-        if (old != NULL) {
-            if (!cJSON_ReplaceItemInObjectCaseSensitive(target, item->string, copy)) {
-                cJSON_Delete(copy);
-                return RETURN_ERR;
-            }
-        } else if (!cJSON_AddItemToObject(target, item->string, copy)) {
-            cJSON_Delete(copy);
-            return RETURN_ERR;
-        }
-    }
-    return RETURN_OK;
-}
-
-static int encode_private_cloud_request(webconfig_subdoc_data_t *data, const cJSON *cloud,
-    bool new_schema)
-{
-    wifi_ctrl_t *ctrl = get_wifictrl_obj();
-    cJSON *json = NULL, *vaps, *vap, *merged;
-    const cJSON *incoming, *item, *name, *radio, *metadata;
-    bool seen[MAX_NUM_RADIOS] = { false };
-    bool present, enabled;
-    char *raw = NULL, *owned_raw;
-    int i, count, found, ret = RETURN_ERR;
-
-    if (!cJSON_IsObject(cloud)) {
-        return RETURN_ERR;
-    }
-    cJSON_ArrayForEach(item, cloud) {
-        const cJSON *previous;
-        for (previous = cloud->child; previous != item; previous = previous->next) {
-            if (previous->string != NULL && item->string != NULL &&
-                strcmp(previous->string, item->string) == 0) {
-                return RETURN_ERR;
-            }
-        }
-    }
-    if (decode_repurposed_vap_config(cloud, &present, &enabled) != webconfig_error_none ||
-        encode_private_subdoc(&ctrl->webconfig, data) != webconfig_error_none) {
-        return RETURN_ERR;
-    }
-    json = cJSON_Parse(data->u.encoded.raw);
-    if (json == NULL) {
-        goto done;
-    }
-    if (new_schema) {
-        incoming = cJSON_GetObjectItemCaseSensitive(cloud, "WifiVapConfig");
-        item = cJSON_GetObjectItemCaseSensitive(cloud, "SubDocName");
-        if (!cJSON_IsString(item) || strcmp(item->valuestring, "private") != 0) {
-            goto done;
-        }
-        item = cJSON_GetObjectItemCaseSensitive(cloud, "Version");
-        if (!cJSON_IsString(item) || strcmp(item->valuestring, "1.0") != 0) {
-            goto done;
-        }
-        vaps = cJSON_GetObjectItemCaseSensitive(json, "WifiVapConfig");
-        count = cJSON_GetArraySize(vaps);
-        if (!cJSON_IsArray(incoming) || cJSON_GetArraySize(incoming) < 1 ||
-            count > MAX_NUM_RADIOS || cJSON_GetArraySize(incoming) > count) {
-            goto done;
-        }
-        cJSON_ArrayForEach(item, incoming) {
-            name = cJSON_GetObjectItemCaseSensitive(item, "VapName");
-            radio = cJSON_GetObjectItemCaseSensitive(item, "RadioIndex");
-            if (!cJSON_IsString(name) || !cJSON_IsNumber(radio) ||
-                !cJSON_IsString(cJSON_GetObjectItemCaseSensitive(item, "SSID")) ||
-                !cJSON_IsObject(cJSON_GetObjectItemCaseSensitive(item, "Security")) ||
-                !cJSON_IsBool(cJSON_GetObjectItemCaseSensitive(item, "Enabled"))) {
-                goto done;
-            }
-            metadata = cJSON_GetObjectItemCaseSensitive(item, "VapMode");
-            if (!cJSON_IsNumber(metadata) || metadata->valuedouble != wifi_vap_mode_ap) {
-                goto done;
-            }
-            metadata = cJSON_GetObjectItemCaseSensitive(item, "RepurposedVapName");
-            if (metadata != NULL &&
-                (!cJSON_IsString(metadata) || metadata->valuestring[0] != '\0')) {
-                goto done;
-            }
-            found = -1;
-            for (i = 0; i < count; i++) {
-                vap = cJSON_GetArrayItem(vaps, i);
-                if (strcmp(name->valuestring,
-                        cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(vap, "VapName"))) ==
-                    0) {
-                    found = i;
-                    break;
-                }
-            }
-            if (found < 0 || seen[found]) {
-                goto done;
-            }
-            seen[found] = true;
-            vap = cJSON_GetArrayItem(vaps, found);
-            if (radio->valuedouble !=
-                cJSON_GetObjectItemCaseSensitive(vap, "RadioIndex")->valuedouble) {
-                goto done;
-            }
-            merged = cJSON_Duplicate(vap, true);
-            if (merged == NULL) {
-                goto done;
-            }
-            if (merge_private_blob_object(merged, item) != RETURN_OK) {
-                cJSON_Delete(merged);
-                goto done;
-            }
-            if (!cJSON_ReplaceItemInArray(vaps, found, merged)) {
-                cJSON_Delete(merged);
-                goto done;
-            }
-        }
-    }
-    if (present) {
-        metadata = cJSON_GetObjectItemCaseSensitive(cloud, "RepurposedVapConfig");
-        merged = cJSON_Duplicate(metadata, true);
-        if (merged == NULL || !cJSON_AddItemToObject(json, "RepurposedVapConfig", merged)) {
-            cJSON_Delete(merged);
-            goto done;
-        }
-    }
-    raw = cJSON_PrintUnformatted(json);
-    if (raw == NULL) {
-        goto done;
-    }
-    /* cJSON may use custom hooks; webconfig_data_free() uses the C allocator. */
-    owned_raw = strdup(raw);
-    if (owned_raw == NULL) {
-        goto done;
-    }
-    webconfig_data_free(data);
-    data->u.encoded.raw = owned_raw;
-    ret = RETURN_OK;
-done:
-    cJSON_free(raw);
-    cJSON_Delete(json);
-    return ret;
-}
-
 static pErr private_home_exec_common_handler(void *blob, const char *vap_prefix, webconfig_subdoc_type_t subdoc_type)
 {
     pErr execRetVal = NULL;
     webconfig_subdoc_data_t *data = NULL;
-    cJSON *cloud = NULL;
-    bool new_schema = false;
+    cJSON *root = NULL;
     if (blob == NULL) {
         wifi_util_error_print(WIFI_CTRL, "%s: Null blob\n", __func__);
         return NULL;
     }
     wifi_util_error_print(WIFI_CTRL, "%s: %d\n", __func__,__LINE__);
 
-    data = (webconfig_subdoc_data_t *)calloc(1, sizeof(webconfig_subdoc_data_t));
+    data = (webconfig_subdoc_data_t *)malloc(sizeof(webconfig_subdoc_data_t));
     if (data == NULL) {
         wifi_util_error_print(WIFI_CTRL,
             "%s:%d malloc failed to allocate webconfig_subdoc_data_t, size %zu\n", __func__,
@@ -1633,36 +1465,27 @@ static pErr private_home_exec_common_handler(void *blob, const char *vap_prefix,
         goto done;
     }
     webconfig_init_subdoc_data(data);
-    if (subdoc_type == webconfig_subdoc_type_private) {
-        cloud = cJSON_Parse((const char *)blob);
-        if (cloud == NULL) {
-            execRetVal->ErrorCode = VALIDATION_FALIED;
-            goto done;
-        }
-        new_schema = cJSON_GetObjectItemCaseSensitive(cloud, "WifiVapConfig") != NULL;
-    }
 
-    if (!new_schema &&
-        update_vap_info_with_blob_info(blob, NULL, data, vap_prefix, false, execRetVal) != 0) {
+    if (update_vap_info_with_blob_info(blob, NULL, data, vap_prefix, false, execRetVal) != 0) {
         wifi_util_error_print(WIFI_CTRL, "%s: json parse failure\n", __func__);
         execRetVal->ErrorCode = VALIDATION_FALIED;
         goto done;
     }
 
     if (subdoc_type == webconfig_subdoc_type_private) {
-        if (encode_private_cloud_request(data, cloud, new_schema) != RETURN_OK) {
+        root = cJSON_Parse((char *)blob);
+        if ((root == NULL) ||
+            (decode_repurposed_vap_object(root, &data->u.decoded.repurposed_vap) !=
+                webconfig_error_none)) {
+            wifi_util_error_print(WIFI_CTRL, "%s: repurposed vap config parse failure\n",
+                __func__);
             execRetVal->ErrorCode = VALIDATION_FALIED;
-            snprintf(execRetVal->ErrorMsg, sizeof(execRetVal->ErrorMsg), "%s",
-                "Invalid private configuration");
+            strncpy(execRetVal->ErrorMsg, "Invalid RepurposedVapConfig",
+                sizeof(execRetVal->ErrorMsg) - 1);
             goto done;
         }
-        if (push_event_to_ctrl_queue(data->u.encoded.raw, strlen(data->u.encoded.raw),
-                wifi_event_type_webconfig, wifi_event_webconfig_set_data_webconfig,
-                NULL) != RETURN_OK) {
-            execRetVal->ErrorCode = WIFI_HAL_FAILURE;
-        }
-        goto done;
     }
+
     if (push_blob_data(data, subdoc_type) != RETURN_OK) {
         execRetVal->ErrorCode = WIFI_HAL_FAILURE;
         strncpy(execRetVal->ErrorMsg, "push_blob_to_ctrl_queue failed", sizeof(execRetVal->ErrorMsg)-1);
@@ -1672,9 +1495,10 @@ static pErr private_home_exec_common_handler(void *blob, const char *vap_prefix,
     }
 
 done:
-    cJSON_Delete(cloud);
+    if (root) {
+        cJSON_Delete(root);
+    }
     if (data) {
-        webconfig_data_free(data);
         free(data);
     }
     return execRetVal;
@@ -2518,3 +2342,4 @@ webconfig_error_t webconfig_single_doc_init()
     wifi_util_info_print(WIFI_CTRL, "%s:%d: register_single_subdocs \n", __func__, __LINE__ );
     return webconfig_error_none;
 }
+

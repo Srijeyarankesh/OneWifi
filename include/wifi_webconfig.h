@@ -210,6 +210,14 @@ typedef struct {
     void *stats;
 } collect_subscribed_stats_t;
 
+/* Repurposed private 2.4 GHz VAP request carried by the private subdoc.
+ * Unchanged (the zero value) keeps the current setting. */
+typedef enum {
+    webconfig_repurposed_vap_unchanged = 0,
+    webconfig_repurposed_vap_disable,
+    webconfig_repurposed_vap_enable
+} webconfig_repurposed_vap_t;
+
 typedef struct {
     wifi_global_config_t    config;
     wifi_hal_capability_t   hal_cap;
@@ -237,6 +245,7 @@ typedef struct {
     report_batch_t *qmgr_report;
     nasta_query_t nasta_query;
     nasta_response_t *nasta_response;
+    webconfig_repurposed_vap_t repurposed_vap;
 } webconfig_subdoc_decoded_data_t;
 
 typedef char  * webconfig_subdoc_encoded_raw_t;
@@ -369,7 +378,12 @@ webconfig_error_t       translate_from_null_subdoc(webconfig_t *config, webconfi
 
 // private
 webconfig_error_t       init_private_subdoc(webconfig_subdoc_t *doc);
-webconfig_error_t decode_repurposed_vap_config(const cJSON *json, bool *present, bool *enabled);
+webconfig_error_t       derive_repurposed_vap_config(wifi_platform_property_t *wifi_prop,
+                            rdk_wifi_radio_t *radios, wifi_vap_info_t *vap_info);
+webconfig_error_t       encode_repurposed_vap_object(webconfig_repurposed_vap_t config,
+                            const wifi_vap_info_t *vap_info, const rdk_wifi_vap_info_t *rdk_vap_info,
+                            cJSON *json);
+webconfig_error_t       decode_repurposed_vap_object(const cJSON *json, webconfig_repurposed_vap_t *config);
 webconfig_error_t       access_check_private_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data);
 webconfig_error_t       decode_private_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data);
 webconfig_error_t       encode_private_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data);

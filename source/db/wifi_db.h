@@ -159,6 +159,7 @@ void init_wifidb_data(void);
 void wifidb_init_rfc_config_default(wifi_rfc_dml_parameters_t *config);
 int wifidb_update_wifi_vap_config(int radio_index, wifi_vap_info_map_t *config,
     rdk_wifi_vap_info_t *rdk_config);
+int wifidb_reload_wifi_vap_config(char *vap_name);
 
 int wifidb_get_default_mld_link_id(int band);
 

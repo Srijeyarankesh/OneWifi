@@ -2150,6 +2150,46 @@ webconfig_error_t encode_mac_object(rdk_wifi_vap_info_t *rdk_vap_info, cJSON *ob
     return webconfig_error_none;
 }
 
+webconfig_error_t encode_repurposed_vap_object(webconfig_repurposed_vap_t config,
+    const wifi_vap_info_t *vap_info, const rdk_wifi_vap_info_t *rdk_vap_info, cJSON *json)
+{
+    cJSON *obj_array, *obj, *vap_obj;
+
+    if (json == NULL) {
+        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: NULL pointer\n", __func__, __LINE__);
+        return webconfig_error_encode;
+    }
+
+    // only an explicit request is carried
+    if (config == webconfig_repurposed_vap_unchanged) {
+        return webconfig_error_none;
+    }
+
+    obj_array = cJSON_CreateArray();
+    cJSON_AddItemToObject(json, "RepurposedVapConfig", obj_array);
+
+    obj = cJSON_CreateObject();
+    cJSON_AddItemToArray(obj_array, obj);
+    cJSON_AddBoolToObject(obj, "Enabled", config == webconfig_repurposed_vap_enable);
+
+    // an enable request carries the repurposed vap configuration
+    if (config == webconfig_repurposed_vap_enable) {
+        if ((vap_info == NULL) || (rdk_vap_info == NULL)) {
+            wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: NULL vap pointer\n", __func__, __LINE__);
+            return webconfig_error_encode;
+        }
+        vap_obj = cJSON_CreateObject();
+        cJSON_AddItemToObject(obj, "VapConfig", vap_obj);
+        if (encode_private_vap_object(vap_info, rdk_vap_info, vap_obj) != webconfig_error_none) {
+            wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: Failed to encode %s\n", __func__,
+                __LINE__, vap_info->vap_name);
+            return webconfig_error_encode;
+        }
+    }
+
+    return webconfig_error_none;
+}
+
 webconfig_error_t encode_levl_object(const levl_config_t *levl, cJSON *levl_obj)
 {
     if ((levl == NULL) || (levl_obj == NULL)) {

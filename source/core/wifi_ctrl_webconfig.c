@@ -163,388 +163,6 @@ void webconfig_init_subdoc_data(webconfig_subdoc_data_t *data)
     data->u.decoded.num_radios = getNumberRadios();
 }
 
-/* The companion is derived runtime configuration; only its RFC is persisted. */
-static int repurposed_vap_index(void)
-{
-    wifi_mgr_t *mgr = get_wifimgr_obj();
-    unsigned int i, index;
-
-    for (i = 0; i < getTotalNumberVAPs(); i++) {
-        index = VAP_INDEX(mgr->hal_cap, i);
-        if (isVapRepurposeTarget(index)) {
-            return (int)index;
-        }
-    }
-    return RETURN_ERR;
-}
-
-int get_repurposed_vap_dormant_config(unsigned int index, wifi_vap_info_t *vap,
-    rdk_wifi_vap_info_t *rdk_vap)
-{
-    wifi_vap_info_t *current;
-    rdk_wifi_vap_info_t *current_rdk;
-
-    if (vap == NULL || rdk_vap == NULL || !isVapRepurposeTarget(index)) {
-        return RETURN_ERR;
-    }
-    current = get_wifidb_vap_parameters(index);
-    current_rdk = get_wifidb_rdk_vap_info(index);
-    if (current == NULL || current_rdk == NULL) {
-        return RETURN_ERR;
-    }
-    *rdk_vap = *current_rdk;
-    if (get_wifidb_obj()->desc.init_vap_config_default_fn(index, vap, rdk_vap) != RETURN_OK) {
-        return RETURN_ERR;
-    }
-    memcpy(vap->u.bss_info.bssid, current->u.bss_info.bssid, sizeof(bssid_t));
-    vap->repurposed_vap_name[0] = '\0';
-    vap->repurposed_bridge_name[0] = '\0';
-    vap->u.bss_info.enabled = false;
-    memset(&vap->u.bss_info.wps, 0, sizeof(vap->u.bss_info.wps));
-    vap->u.bss_info.wpsPushButton = 0;
-    vap->u.bss_info.mld_info.common_info.mld_enable = false;
-    vap->u.bss_info.mld_info.common_info.mld_id = 255;
-    rdk_vap->vap_index = index;
-    return RETURN_OK;
-}
-
-static wifi_vap_info_t *repurposed_private_source(webconfig_subdoc_decoded_data_t *data,
-    wifi_freq_bands_t band)
-{
-    unsigned int i, j;
-    wifi_vap_info_map_t *map;
-
-    for (i = 0; i < data->num_radios; i++) {
-        if (data->radios[i].oper.band != band) {
-            continue;
-        }
-        map = &data->radios[i].vaps.vap_map;
-        for (j = 0; j < map->num_vaps; j++) {
-            if (map->vap_array[j].vap_name[0] != '\0' && map->vap_array[j].radio_index == i &&
-                is_vap_private(&data->hal_cap.wifi_prop, map->vap_array[j].vap_index) &&
-                map->vap_array[j].vap_mode == wifi_vap_mode_ap) {
-                return &map->vap_array[j];
-            }
-        }
-    }
-    return NULL;
-}
-
-static bool repurposed_personal_security(wifi_security_modes_t mode)
-{
-    return mode == wifi_security_mode_wpa2_personal || mode == wifi_security_mode_wpa3_personal ||
-        mode == wifi_security_mode_wpa3_transition ||
-        mode == wifi_security_mode_wpa3_compatibility ||
-        mode == wifi_security_mode_wpa_wpa2_personal || mode == wifi_security_mode_wpa_personal;
-}
-
-static int derive_repurposed_vap_config(webconfig_subdoc_decoded_data_t *data, unsigned int index,
-    wifi_vap_info_t *vap, rdk_wifi_vap_info_t *rdk_vap)
-{
-    wifi_vap_info_t *source, *password_source;
-    bssid_t bssid;
-    size_t password_length;
-
-    if (get_repurposed_vap_dormant_config(index, vap, rdk_vap) != RETURN_OK) {
-        return RETURN_ERR;
-    }
-    source = repurposed_private_source(data, WIFI_FREQUENCY_2_4_BAND);
-    if (source == NULL) {
-        return RETURN_ERR;
-    }
-    password_source = source;
-    if (source->u.bss_info.security.mode == wifi_security_mode_none) {
-        password_source = repurposed_private_source(data, WIFI_FREQUENCY_5_BAND);
-        if (password_source == NULL ||
-            password_source->u.bss_info.security.mode == wifi_security_mode_none) {
-            password_source = repurposed_private_source(data, WIFI_FREQUENCY_6_BAND);
-        }
-    }
-    if (password_source == NULL ||
-        !repurposed_personal_security(password_source->u.bss_info.security.mode)) {
-        return RETURN_ERR;
-    }
-    password_length = strnlen(password_source->u.bss_info.security.u.key.key,
-        sizeof(password_source->u.bss_info.security.u.key.key));
-    /* SAE requires a passphrase, not a raw WPA2 64-hex PSK. */
-    if (password_length < 8 || password_length > 63) {
-        return RETURN_ERR;
-    }
-    memcpy(bssid, vap->u.bss_info.bssid, sizeof(bssid));
-    vap->u.bss_info = source->u.bss_info;
-    memcpy(vap->u.bss_info.bssid, bssid, sizeof(bssid));
-    snprintf(vap->bridge_name, sizeof(vap->bridge_name), "%s", source->bridge_name);
-    snprintf(vap->repurposed_vap_name, sizeof(vap->repurposed_vap_name), "%s",
-        WIFI_REPURPOSED_PRIVATE_2G_NAME);
-    vap->repurposed_bridge_name[0] = '\0';
-    memset(&vap->u.bss_info.security.u, 0, sizeof(vap->u.bss_info.security.u));
-    memset(&vap->u.bss_info.security.repurposed_radius, 0,
-        sizeof(vap->u.bss_info.security.repurposed_radius));
-    snprintf(vap->u.bss_info.security.u.key.key, sizeof(vap->u.bss_info.security.u.key.key), "%s",
-        password_source->u.bss_info.security.u.key.key);
-    vap->u.bss_info.security.mode = wifi_security_mode_wpa3_compatibility;
-    if (source->u.bss_info.security.mode == wifi_security_mode_none ||
-        (source->u.bss_info.security.encr != wifi_encryption_aes
-#ifdef CONFIG_IEEE80211BE
-            && source->u.bss_info.security.encr != wifi_encryption_aes_gcmp256
-#endif
-            )) {
-        vap->u.bss_info.security.encr = wifi_encryption_aes;
-    }
-    vap->u.bss_info.security.mfp = wifi_mfp_cfg_disabled;
-    vap->u.bss_info.security.u.key.type = wifi_security_key_type_psk_sae;
-    vap->u.bss_info.security.wpa3_transition_disable = false;
-    vap->u.bss_info.bssHotspot = false;
-    vap->u.bss_info.network_initiated_greylist = false;
-    vap->u.bss_info.connected_building_enabled = false;
-    vap->u.bss_info.mdu_enabled = false;
-    memset(&vap->u.bss_info.wps, 0, sizeof(vap->u.bss_info.wps));
-    vap->u.bss_info.wpsPushButton = 0;
-    vap->u.bss_info.bssTransitionActivated = false;
-    vap->u.bss_info.interworking.interworking.interworkingEnabled = false;
-    vap->u.bss_info.interworking.passpoint.enable = false;
-    memset(&vap->u.bss_info.mld_info, 0, sizeof(vap->u.bss_info.mld_info));
-    vap->u.bss_info.mld_info.common_info.mld_id = 255;
-    memset(&vap->u.bss_info.preassoc, 0, sizeof(vap->u.bss_info.preassoc));
-    memset(&vap->u.bss_info.postassoc, 0, sizeof(vap->u.bss_info.postassoc));
-    return RETURN_OK;
-}
-
-static int apply_repurposed_vap_config(wifi_ctrl_t *ctrl, wifi_vap_info_t *vap,
-    rdk_wifi_vap_info_t *rdk_vap, bool force)
-{
-    wifi_vap_info_map_t *map;
-    wifi_vap_info_t *current = get_wifidb_vap_parameters(vap->vap_index);
-    rdk_wifi_vap_info_t *current_rdk = get_wifidb_rdk_vap_info(vap->vap_index);
-    vap_svc_t *svc;
-    int ret;
-
-    if (current == NULL || current_rdk == NULL) {
-        return RETURN_ERR;
-    }
-    if (!force && !current_rdk->force_apply &&
-        strcmp(current->repurposed_vap_name, vap->repurposed_vap_name) == 0 &&
-        strcmp(current->bridge_name, vap->bridge_name) == 0 &&
-        !is_vap_param_config_changed(current, vap, current_rdk, rdk_vap, false)) {
-        /* ACL-only changes use the dedicated MAC-filter apply path below. */
-        return RETURN_OK;
-    }
-    svc = get_svc_by_type(ctrl, vap_svc_type_private);
-    if (svc == NULL || (map = calloc(1, sizeof(*map))) == NULL) {
-        return RETURN_ERR;
-    }
-    map->num_vaps = 1;
-    map->vap_array[0] = *vap;
-    /* Commit a cleared retry hint only together with a successful effective configuration. */
-    rdk_vap->force_apply = false;
-    ret = svc->update_fn(svc, vap->radio_index, map, rdk_vap);
-    if (ret == RETURN_OK) {
-        *vap = map->vap_array[0];
-    } else {
-        /* HAL cleanup may have stopped the BSS while the previous cache still matches. */
-        current_rdk->force_apply = true;
-    }
-    free(map);
-    return ret;
-}
-
-int webconfig_reapply_repurposed_vap(wifi_ctrl_t *ctrl)
-{
-    webconfig_subdoc_data_t *data;
-    wifi_vap_info_t *vap;
-    rdk_wifi_vap_info_t rdk_vap;
-    int index = repurposed_vap_index();
-    int ret;
-
-    if (index < 0) {
-        return RETURN_OK;
-    }
-    data = calloc(1, sizeof(*data));
-    vap = calloc(1, sizeof(*vap));
-    if (data == NULL || vap == NULL) {
-        free(data);
-        free(vap);
-        return RETURN_ERR;
-    }
-    webconfig_init_subdoc_data(data);
-    if (get_wifi_db_rfc_parameters()->repurposed_vap_enable) {
-        ret = derive_repurposed_vap_config(&data->u.decoded, index, vap, &rdk_vap);
-    } else {
-        ret = get_repurposed_vap_dormant_config(index, vap, &rdk_vap);
-    }
-    if (ret == RETURN_OK) {
-        ret = apply_repurposed_vap_config(ctrl, vap, &rdk_vap, true);
-    }
-    if (ret != RETURN_OK && get_repurposed_vap_dormant_config(index, vap, &rdk_vap) == RETURN_OK) {
-        if (apply_repurposed_vap_config(ctrl, vap, &rdk_vap, true) != RETURN_OK) {
-            wifi_util_error_print(WIFI_CTRL, "%s: failed to disable companion %d\n", __func__,
-                index);
-        }
-    }
-    free(vap);
-    free(data);
-    return ret;
-}
-
-static int apply_private_repurposed_request(wifi_ctrl_t *ctrl, webconfig_subdoc_data_t *data)
-{
-    cJSON *json;
-    bool present = false, enable = false;
-    bool old_enable = get_wifi_db_rfc_parameters()->repurposed_vap_enable;
-    wifi_rfc_dml_parameters_t rfc;
-    webconfig_subdoc_data_t *previous;
-    wifi_vap_info_t *vap;
-    wifi_vap_info_t *source;
-    rdk_wifi_vap_info_t rdk_vap;
-    int index, ret = RETURN_ERR;
-    unsigned int i;
-
-    json = cJSON_Parse(data->u.encoded.raw);
-    if (decode_repurposed_vap_config(json, &present, &enable) != webconfig_error_none) {
-        cJSON_Delete(json);
-        return RETURN_ERR;
-    }
-    cJSON_Delete(json);
-    if (!present) {
-        enable = old_enable;
-    }
-    if (!present && !old_enable) {
-        return webconfig_hal_private_vap_apply(ctrl, &data->u.decoded);
-    }
-    index = repurposed_vap_index();
-    if (index < 0) {
-        return RETURN_ERR;
-    }
-    previous = calloc(1, sizeof(*previous));
-    vap = calloc(1, sizeof(*vap));
-    if (previous == NULL || vap == NULL) {
-        free(previous);
-        free(vap);
-        return RETURN_ERR;
-    }
-    webconfig_init_subdoc_data(previous);
-    /* Private subdocs do not carry radio operational parameters. */
-    data->u.decoded.num_radios = getNumberRadios();
-    for (i = 0; i < data->u.decoded.num_radios; i++) {
-        data->u.decoded.radios[i].oper = previous->u.decoded.radios[i].oper;
-    }
-    /* Apply the migration only on an explicit rising edge. Later overrides survive boot. */
-    if (present && enable && !old_enable) {
-        for (i = 0; i < data->u.decoded.num_radios; i++) {
-            if (data->u.decoded.radios[i].oper.band == WIFI_FREQUENCY_6_BAND) {
-                continue;
-            }
-            source = repurposed_private_source(&data->u.decoded,
-                data->u.decoded.radios[i].oper.band);
-            if (source != NULL &&
-                source->u.bss_info.security.mode == wifi_security_mode_wpa2_personal) {
-                source->u.bss_info.security.mode = wifi_security_mode_wpa3_transition;
-                source->u.bss_info.security.mfp = wifi_mfp_cfg_optional;
-                source->u.bss_info.security.wpa3_transition_disable = false;
-                if (source->u.bss_info.security.encr != wifi_encryption_aes
-#ifdef CONFIG_IEEE80211BE
-                    && source->u.bss_info.security.encr != wifi_encryption_aes_gcmp256
-#endif
-                ) {
-                    source->u.bss_info.security.encr = wifi_encryption_aes;
-                }
-                source->u.bss_info.security.u.key.type = wifi_security_key_type_psk_sae;
-            }
-        }
-    }
-    ret = enable ? derive_repurposed_vap_config(&data->u.decoded, index, vap, &rdk_vap) :
-                   get_repurposed_vap_dormant_config(index, vap, &rdk_vap);
-    if (ret != RETURN_OK) {
-        goto done;
-    }
-    ret = webconfig_hal_private_vap_apply(ctrl, &data->u.decoded);
-    if (ret != RETURN_OK) {
-        goto rollback;
-    }
-    ret = apply_repurposed_vap_config(ctrl, vap, &rdk_vap, false);
-    if (ret != RETURN_OK) {
-        goto rollback;
-    }
-    if (present && enable != old_enable) {
-        rfc = *get_wifi_db_rfc_parameters();
-        rfc.repurposed_vap_enable = enable;
-        ret = get_wifidb_obj()->desc.update_rfc_config_fn(0, &rfc);
-        if (ret != RETURN_OK) {
-            goto rollback;
-        }
-        get_wifimgr_obj()->rfc_dml_parameters.repurposed_vap_enable = enable;
-    }
-    if (present && publish_repurposed_vap_status(enable) != RETURN_OK) {
-        wifi_util_error_print(WIFI_CTRL, "%s: configuration applied; status publication failed\n",
-            __func__);
-    }
-    ret = RETURN_OK;
-    goto done;
-
-rollback:
-    if (webconfig_hal_private_vap_apply(ctrl, &previous->u.decoded) != RETURN_OK) {
-        wifi_util_error_print(WIFI_CTRL, "%s: private configuration rollback failed\n", __func__);
-    }
-    if (webconfig_reapply_repurposed_vap(ctrl) != RETURN_OK) {
-        wifi_util_error_print(WIFI_CTRL, "%s: companion recovery failed\n", __func__);
-    }
-    ret = RETURN_ERR;
-done:
-    free(vap);
-    free(previous);
-    return ret;
-}
-
-int webconfig_set_repurposed_vap(wifi_ctrl_t *ctrl, bool enable)
-{
-    webconfig_subdoc_data_t *data;
-    cJSON *json = NULL, *array = NULL, *item = NULL;
-    char *raw = NULL;
-    int ret = RETURN_ERR;
-
-    if (repurposed_vap_index() < 0) {
-        return RETURN_ERR;
-    }
-    data = calloc(1, sizeof(*data));
-    if (data == NULL) {
-        return RETURN_ERR;
-    }
-    webconfig_init_subdoc_data(data);
-    /* Encode directly: this is an internal request, not a northbound publication. */
-    if (encode_private_subdoc(&ctrl->webconfig, data) != webconfig_error_none) {
-        goto done;
-    }
-    json = cJSON_Parse(data->u.encoded.raw);
-    array = cJSON_CreateArray();
-    item = cJSON_CreateObject();
-    if (json == NULL || array == NULL || item == NULL) {
-        goto done;
-    }
-    if (cJSON_AddBoolToObject(item, "Enabled", enable) == NULL) {
-        goto done;
-    }
-    cJSON_AddItemToArray(array, item);
-    item = NULL;
-    cJSON_AddItemToObject(json, "RepurposedVapConfig", array);
-    array = NULL;
-    raw = cJSON_PrintUnformatted(json);
-    if (raw == NULL) {
-        goto done;
-    }
-    webconfig_data_free(data);
-    data->descriptor = 0;
-    ret = webconfig_decode(&ctrl->webconfig, data, raw) == webconfig_error_none ? RETURN_OK :
-                                                                                  RETURN_ERR;
-done:
-    cJSON_Delete(item);
-    cJSON_Delete(array);
-    cJSON_Delete(json);
-    cJSON_free(raw);
-    webconfig_data_free(data);
-    free(data);
-    return ret;
-}
-
 int update_vap_params_to_hal_and_db(wifi_vap_info_t *vap, bool enable_or_disable) {
     if (!vap) {
         return RETURN_ERR;
@@ -610,9 +228,7 @@ int webconfig_send_wifi_config_status(wifi_ctrl_t *ctrl)
     memcpy((unsigned char *)&data->u.decoded.config, (unsigned char *)&mgr->global_config, sizeof(wifi_global_config_t));
     memcpy((unsigned char *)&data->u.decoded.hal_cap, (unsigned char *)&mgr->hal_cap, sizeof(wifi_hal_capability_t));
 
-    if (project_repurposed_vap_for_external(&data->u.decoded) != RETURN_OK ||
-        webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_wifi_config) !=
-            webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_wifi_config) != webconfig_error_none) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d - Failed webconfig_encode\n", __FUNCTION__, __LINE__);
     }
 
@@ -634,8 +250,7 @@ int webconfig_send_radio_subdoc_status(wifi_ctrl_t *ctrl, webconfig_subdoc_type_
 
     webconfig_init_subdoc_data(data);
 
-    if (project_repurposed_vap_for_external(&data->u.decoded) != RETURN_OK ||
-        webconfig_encode(&ctrl->webconfig, data, type) != webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, type) != webconfig_error_none) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d - Failed webconfig_encode\n", __FUNCTION__, __LINE__);
     }
 
@@ -657,8 +272,7 @@ int webconfig_send_vap_subdoc_status(wifi_ctrl_t *ctrl, webconfig_subdoc_type_t 
 
     webconfig_init_subdoc_data(data);
 
-    if (project_repurposed_vap_for_external(&data->u.decoded) != RETURN_OK ||
-        webconfig_encode(&ctrl->webconfig, data, type) != webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, type) != webconfig_error_none) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d - Failed webconfig_encode\n", __FUNCTION__, __LINE__);
     }
 
@@ -679,9 +293,7 @@ int webconfig_send_dml_subdoc_status(wifi_ctrl_t *ctrl)
     }
 
     webconfig_init_subdoc_data(data);
-    if (project_repurposed_vap_for_external(&data->u.decoded) != RETURN_OK ||
-        webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_dml) !=
-            webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_dml) != webconfig_error_none) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d - Failed webconfig_encode\n", __FUNCTION__, __LINE__);
     }
 
@@ -755,9 +367,7 @@ int webconfig_send_associate_status(wifi_ctrl_t *ctrl)
 
     webconfig_init_subdoc_data(data);
     data->u.decoded.assoclist_notifier_type = assoclist_notifier_diff;
-    if (project_repurposed_vap_for_external(&data->u.decoded) != RETURN_OK ||
-        webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_associated_clients) !=
-            webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_associated_clients) != webconfig_error_none) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d - Failed webconfig_encode\n", __FUNCTION__, __LINE__);
     }
     webconfig_free_vap_object_diff_assoc_client_entries(data);
@@ -781,9 +391,8 @@ int webconfig_send_full_associate_status(wifi_ctrl_t *ctrl)
 
     webconfig_init_subdoc_data(data);
     data->u.decoded.assoclist_notifier_type = assoclist_notifier_full;
-    if (project_repurposed_vap_for_external(&data->u.decoded) != RETURN_OK ||
-        webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_associated_clients) !=
-            webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_associated_clients) !=
+        webconfig_error_none) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d - Failed webconfig_encode\n", __FUNCTION__,
             __LINE__);
     }
@@ -815,9 +424,7 @@ int webconfig_send_blaster_status(wifi_ctrl_t *ctrl)
     memset(data, 0, sizeof(webconfig_subdoc_data_t));
     memcpy((unsigned char *)&data->u.decoded.blaster, (unsigned char *)&mgr->blaster_config_global, sizeof(active_msmt_t));
 
-    if (project_repurposed_vap_for_external(&data->u.decoded) != RETURN_OK ||
-        webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_blaster) !=
-            webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_blaster) != webconfig_error_none) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d - Failed webconfig_encode\n", __FUNCTION__, __LINE__);
     }
 
@@ -840,9 +447,7 @@ int webconfig_send_steering_clients_status(wifi_ctrl_t *ctrl)
 
     webconfig_init_subdoc_data(data);
 
-    if (project_repurposed_vap_for_external(&data->u.decoded) != RETURN_OK ||
-        webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_steering_clients) !=
-            webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_steering_clients) != webconfig_error_none) {
         wifi_util_dbg_print(WIFI_CTRL, "%s:%d - Failed webconfig_encode\n", __FUNCTION__, __LINE__);
     }
 
@@ -865,8 +470,7 @@ int webconfig_send_multivap_subdoc_status(wifi_ctrl_t *ctrl, webconfig_subdoc_ty
 
     webconfig_init_subdoc_data(data);
 
-    if (project_repurposed_vap_for_external(&data->u.decoded) != RETURN_OK ||
-        webconfig_encode(&ctrl->webconfig, data, type) != webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, type) != webconfig_error_none) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d: Failed webconfig_encode\n", __FUNCTION__, __LINE__);
     }
 
@@ -1242,8 +846,7 @@ bool is_force_apply_true(rdk_wifi_vap_info_t *rdk_vap_info) {
     return false;
 }
 
-static int webconfig_hal_vap_apply_by_name(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data,
-    char **vap_names, unsigned int size, bool reconcile_private)
+int webconfig_hal_vap_apply_by_name(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data, char **vap_names, unsigned int size)
 {
     unsigned int i, j, k;
     int tgt_radio_idx, tgt_vap_index;
@@ -1252,7 +855,6 @@ static int webconfig_hal_vap_apply_by_name(wifi_ctrl_t *ctrl, webconfig_subdoc_d
     vap_svc_t *svc;
     wifi_vap_info_map_t *mgr_vap_map, *p_tgt_vap_map = NULL;
     bool found_target = false;
-    bool private_changed = false;
     wifi_mgr_t *mgr = get_wifimgr_obj();
     char update_status[128];
     public_vaps_data_t pub;
@@ -1279,7 +881,10 @@ static int webconfig_hal_vap_apply_by_name(wifi_ctrl_t *ctrl, webconfig_subdoc_d
             continue;
         }
 
-        if (isVapRepurposeTarget(tgt_vap_index)) {
+        // the repurposed vap is configured only from the private vaps
+        if (isVapRepurposed(tgt_vap_index)) {
+            wifi_util_info_print(WIFI_MGR, "%s:%d: %s is repurposed, configuration rejected\n",
+                __func__, __LINE__, vap_names[i]);
             continue;
         }
 
@@ -1446,10 +1051,7 @@ static int webconfig_hal_vap_apply_by_name(wifi_ctrl_t *ctrl, webconfig_subdoc_d
 
             // Updating ignite enable/disable config via this memcpy
         memcpy(mgr_vap_info, &p_tgt_vap_map->vap_array[0], sizeof(wifi_vap_info_t));
-        if (isVapPrivate(tgt_vap_index)) {
-            private_changed = true;
-        }
-
+        
         // This block of code is only used for updating VAP mac.
             //if (vap_info->vap_mode == wifi_vap_mode_ap && is_bssid_valid(p_tgt_vap_map->vap_array[0].u.bss_info.bssid)) {
             //    memcpy(vap_info->u.bss_info.bssid, p_tgt_vap_map->vap_array[0].u.bss_info.bssid, sizeof(mac_address_t));
@@ -1468,10 +1070,6 @@ static int webconfig_hal_vap_apply_by_name(wifi_ctrl_t *ctrl, webconfig_subdoc_d
 #if defined(CONFIG_IEEE80211BE) && !defined(CONFIG_GENERIC_MLO)
     update_mlo_rfc_enable(false);
 #endif
-    if (reconcile_private && private_changed &&
-        get_wifi_db_rfc_parameters()->repurposed_vap_enable) {
-        return webconfig_reapply_repurposed_vap(ctrl);
-    }
     return RETURN_OK;
 }
 
@@ -2155,12 +1753,210 @@ int webconfig_cac_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data
     return RETURN_OK;
 }
 
+/* Derive the repurposed VAP in the cache at boot. The private service creates it. */
+int init_repurposed_vap_config(void)
+{
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+    int vap_index = getRepurposeTargetVapIndex();
+    wifi_vap_info_t vap_info;
+
+    if ((vap_index < 0) || (get_wifi_db_rfc_parameters()->repurposed_vap_enable == false)) {
+        return RETURN_OK;
+    }
+
+    if (derive_repurposed_vap_config(&mgr->hal_cap.wifi_prop, mgr->radio_config, &vap_info) !=
+        webconfig_error_none) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: vap_index:%d stays a hotspot\n", __func__,
+            __LINE__, vap_index);
+        return RETURN_ERR;
+    }
+
+    pthread_mutex_lock(&mgr->data_cache_lock);
+    memcpy(get_wifidb_vap_parameters(vap_index), &vap_info, sizeof(wifi_vap_info_t));
+    pthread_mutex_unlock(&mgr->data_cache_lock);
+    sync_repurposed_vap_acl(vap_index, false);
+
+    wifi_util_info_print(WIFI_CTRL, "%s:%d: vap_index:%d repurposed into the private network\n",
+        __func__, __LINE__, vap_index);
+    return RETURN_OK;
+}
+
+/* Restore the persisted hotspot configuration and let the public service apply it. */
+static int webconfig_hal_repurposed_vap_restore(wifi_ctrl_t *ctrl, int vap_index)
+{
+    wifi_vap_info_map_t *map;
+    rdk_wifi_vap_info_t rdk_vap_info;
+    vap_svc_t *svc = get_svc_by_type(ctrl, vap_svc_type_public);
+    unsigned int tunnel_status = DEVICE_TUNNEL_DOWN;
+    int ret;
+
+    if ((svc == NULL) || (wifidb_reload_wifi_vap_config(getVAPName(vap_index)) != RETURN_OK)) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: vap_index:%d hotspot config not restored\n",
+            __func__, __LINE__, vap_index);
+        return RETURN_ERR;
+    }
+
+    map = (wifi_vap_info_map_t *)calloc(1, sizeof(wifi_vap_info_map_t));
+    if (map == NULL) {
+        return RETURN_ERR;
+    }
+    map->num_vaps = 1;
+    memcpy(&map->vap_array[0], get_wifidb_vap_parameters(vap_index), sizeof(wifi_vap_info_t));
+    memcpy(&rdk_vap_info, get_wifidb_rdk_vap_info(vap_index), sizeof(rdk_vap_info));
+
+    // hotspot vaps run only while the tunnel is up
+    bus_get_vap_init_parameter(WIFI_DEVICE_TUNNEL_STATUS, &tunnel_status);
+    map->vap_array[0].u.bss_info.enabled = (tunnel_status == DEVICE_TUNNEL_UP) &&
+        get_wifi_db_rfc_parameters()->hotspot_secure_2g_last_enabled;
+
+    ret = svc->update_fn(svc, map->vap_array[0].radio_index, map, &rdk_vap_info);
+    free(map);
+    return ret;
+}
+
+/* Bring the repurposed VAP to the requested state. Enabled, it is the given configuration or,
+ * without one, the configuration derived from the cached private VAPs. It is applied by the
+ * private service and nothing of it is persisted. Disabled, it is the hotspot VAP again. */
+int webconfig_hal_repurposed_vap_apply(wifi_ctrl_t *ctrl, bool enable,
+    const wifi_vap_info_t *vap_config)
+{
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+    int vap_index = getRepurposeTargetVapIndex();
+    wifi_vap_info_map_t *map;
+    rdk_wifi_vap_info_t rdk_vap_info;
+    vap_svc_t *svc = get_svc_by_type(ctrl, vap_svc_type_private);
+    bool repurposed;
+    int ret;
+
+    if (vap_index < 0) {
+        return enable ? RETURN_ERR : RETURN_OK;
+    }
+    repurposed = isVapRepurposed(vap_index);
+    if (enable == false) {
+        return repurposed ? webconfig_hal_repurposed_vap_restore(ctrl, vap_index) : RETURN_OK;
+    }
+
+    map = (wifi_vap_info_map_t *)calloc(1, sizeof(wifi_vap_info_map_t));
+    if ((map == NULL) || (svc == NULL)) {
+        free(map);
+        return RETURN_ERR;
+    }
+    map->num_vaps = 1;
+    memcpy(&rdk_vap_info, get_wifidb_rdk_vap_info(vap_index), sizeof(rdk_vap_info));
+    if (vap_config != NULL) {
+        memcpy(&map->vap_array[0], vap_config, sizeof(wifi_vap_info_t));
+    } else if (derive_repurposed_vap_config(&mgr->hal_cap.wifi_prop, mgr->radio_config,
+                   &map->vap_array[0]) != webconfig_error_none) {
+        free(map);
+        // a repurposed vap cannot follow the private configuration anymore
+        if (repurposed) {
+            webconfig_hal_repurposed_vap_restore(ctrl, vap_index);
+        }
+        return RETURN_ERR;
+    }
+    if (repurposed &&
+        (is_vap_param_config_changed(get_wifidb_vap_parameters(vap_index), &map->vap_array[0],
+             &rdk_vap_info, &rdk_vap_info, false) == false)) {
+        free(map);
+        return RETURN_OK;
+    }
+
+    ret = svc->update_fn(svc, map->vap_array[0].radio_index, map, &rdk_vap_info);
+    free(map);
+    if (ret != RETURN_OK) {
+        // do not leave the vap down, it serves as hotspot until the next attempt
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: vap_index:%d not repurposed, restoring hotspot\n",
+            __func__, __LINE__, vap_index);
+        webconfig_hal_repurposed_vap_restore(ctrl, vap_index);
+    }
+    return ret;
+}
+
+/* Apply the repurposed VAP request of decoded data. Without a request, the repurposed VAP
+ * follows the applied private VAPs. The RFC is persisted only once the VAP is applied. */
+static int webconfig_hal_repurposed_vap_request_apply(wifi_ctrl_t *ctrl,
+    webconfig_subdoc_decoded_data_t *data)
+{
+    wifi_rfc_dml_parameters_t *rfc_param = get_wifi_db_rfc_parameters();
+    int vap_index = getRepurposeTargetVapIndex();
+    bool enable = rfc_param->repurposed_vap_enable;
+    const wifi_vap_info_t *vap_config = NULL;
+    bool applied, ret_applied;
+    int ret;
+
+    if (data->repurposed_vap != webconfig_repurposed_vap_unchanged) {
+        enable = (data->repurposed_vap == webconfig_repurposed_vap_enable);
+    } else if (vap_index < 0) {
+        return RETURN_OK;
+    }
+    // an enable request carries the repurposed vap configuration
+    if ((data->repurposed_vap == webconfig_repurposed_vap_enable) && (vap_index >= 0)) {
+        vap_config = &data->radios[getRadioIndexFromAp(vap_index)].vaps.vap_map.vap_array[
+            convert_vap_index_to_vap_array_index(&data->hal_cap.wifi_prop, vap_index)];
+    }
+
+    applied = (vap_index >= 0) && isVapRepurposed(vap_index);
+    ret = webconfig_hal_repurposed_vap_apply(ctrl, enable, vap_config);
+    if (ret != RETURN_OK) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: repurposed vap %s failed\n", __func__, __LINE__,
+            enable ? "enable" : "disable");
+        // a reconciliation is retried on the next private change, the request is rejected
+        ret = (data->repurposed_vap == webconfig_repurposed_vap_unchanged) ? RETURN_OK : RETURN_ERR;
+    } else if (enable != rfc_param->repurposed_vap_enable) {
+        rfc_param->repurposed_vap_enable = enable;
+        if (get_wifidb_obj()->desc.update_rfc_config_fn(0, rfc_param) != RETURN_OK) {
+            wifi_util_error_print(WIFI_CTRL, "%s:%d: failed to persist the RFC\n", __func__, __LINE__);
+        }
+        notify_repurposed_vap_enable(ctrl, enable);
+    }
+
+    ret_applied = (vap_index >= 0) && isVapRepurposed(vap_index);
+    if (applied != ret_applied) {
+        // the mac filter and dml views of the vap changed
+        ctrl->webconfig_state |= (ctrl_webconfig_state_macfilter_cfg_rsp_pending |
+            ctrl_webconfig_state_vap_all_cfg_rsp_pending);
+        notify_repurposed_vap_status(ctrl, ret_applied);
+    }
+    return ret;
+}
+
+/* Move the WPA2-Personal private VAPs, but 6 GHz, to WPA3-Personal-Transition. */
+static bool webconfig_repurposed_vap_security_migrate(webconfig_subdoc_decoded_data_t *data)
+{
+    wifi_radio_operationParam_t *radio_params;
+    wifi_vap_info_t *vap_info;
+    unsigned int i, j;
+    bool changed = false;
+
+    for (i = 0; i < getNumberRadios(); i++) {
+        radio_params = (wifi_radio_operationParam_t *)get_wifidb_radio_map(i);
+        if ((radio_params == NULL) || (radio_params->band == WIFI_FREQUENCY_6_BAND)) {
+            continue;
+        }
+        for (j = 0; j < getNumberVAPsPerRadio(i); j++) {
+            vap_info = &data->radios[i].vaps.vap_map.vap_array[j];
+            if ((vap_info->vap_name[0] == '\0') || !isVapPrivate(vap_info->vap_index) ||
+                (vap_info->u.bss_info.security.mode != wifi_security_mode_wpa2_personal)) {
+                continue;
+            }
+            vap_info->u.bss_info.security.mode = wifi_security_mode_wpa3_transition;
+            vap_info->u.bss_info.security.wpa3_transition_disable = false;
+            vap_info->u.bss_info.security.mfp = wifi_mfp_cfg_optional;
+            vap_info->u.bss_info.security.u.key.type = wifi_security_key_type_psk_sae;
+            apply_wpa3_transition_encr_policy(&vap_info->u.bss_info.security);
+            changed = true;
+        }
+    }
+    return changed;
+}
+
 int webconfig_hal_private_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
 {
     unsigned int ap_index = 0;
     unsigned int num_vaps = 0;
     char *vap_name = NULL;
     char *vap_names[MAX_VAP] = { NULL };
+    bool repurposed_vap_enabling;
 
     wifi_mgr_t *mgr = get_wifimgr_obj();
 
@@ -2175,7 +1971,22 @@ int webconfig_hal_private_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_
 #if defined(CONFIG_IEEE80211BE) && !defined(CONFIG_GENERIC_MLO)
     update_mld_groups(data, vap_names, num_vaps, WIFI_MGR);
 #endif // CONFIG_IEEE80211BE && !CONFIG_GENERIC_MLO
-    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps, false);
+    if (webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps) != RETURN_OK) {
+        return RETURN_ERR;
+    }
+
+    // the repurposed vap request, or the applied private vaps it follows
+    repurposed_vap_enabling = (data->repurposed_vap == webconfig_repurposed_vap_enable) &&
+        (get_wifi_db_rfc_parameters()->repurposed_vap_enable == false);
+    if (webconfig_hal_repurposed_vap_request_apply(ctrl, data) != RETURN_OK) {
+        return RETURN_ERR;
+    }
+
+    // once enabled, the WPA2 only clients are served by the repurposed vap
+    if (repurposed_vap_enabling && webconfig_repurposed_vap_security_migrate(data)) {
+        return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps);
+    }
+    return RETURN_OK;
 }
 
 int webconfig_hal_home_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
@@ -2198,7 +2009,7 @@ int webconfig_hal_home_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_dat
 #if defined(CONFIG_IEEE80211BE) && !defined(CONFIG_GENERIC_MLO)
     update_mld_groups(data, vap_names, num_vaps, WIFI_MGR);
 #endif // CONFIG_IEEE80211BE && !CONFIG_GENERIC_MLO
-    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps, true);
+    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps);
 }
 
 int webconfig_hal_xfinity_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
@@ -2221,7 +2032,7 @@ int webconfig_hal_xfinity_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_
 #if defined(CONFIG_IEEE80211BE) && !defined(CONFIG_GENERIC_MLO)
     update_mld_groups(data, vap_names, num_vaps, WIFI_MGR);
 #endif // CONFIG_IEEE80211BE && !CONFIG_GENERIC_MLO
-    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps, true);
+    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps);
 }
 
 int webconfig_hal_lnf_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
@@ -2244,7 +2055,7 @@ int webconfig_hal_lnf_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data
 #if defined(CONFIG_IEEE80211BE) && !defined(CONFIG_GENERIC_MLO)
     update_mld_groups(data, vap_names, num_vaps, WIFI_MGR);
 #endif // CONFIG_IEEE80211BE && !CONFIG_GENERIC_MLO
-    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps, true);
+    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps);
 }
 
 int webconfig_hal_mesh_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
@@ -2267,7 +2078,7 @@ int webconfig_hal_mesh_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_dat
 #if defined(CONFIG_IEEE80211BE) && !defined(CONFIG_GENERIC_MLO)
     update_mld_groups(data, vap_names, num_vaps, WIFI_MGR);
 #endif // CONFIG_IEEE80211BE && !CONFIG_GENERIC_MLO
-    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps, true);
+    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps);
 }
 
 int webconfig_hal_mesh_sta_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
@@ -2290,7 +2101,7 @@ int webconfig_hal_mesh_sta_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded
 #if defined(CONFIG_IEEE80211BE) && !defined(CONFIG_GENERIC_MLO)
     update_mld_groups(data, vap_names, num_vaps, WIFI_MGR);
 #endif // CONFIG_IEEE80211BE && !CONFIG_GENERIC_MLO
-    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps, true);
+    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps);
 }
 
 int webconfig_hal_mesh_backhaul_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data)
@@ -2313,7 +2124,7 @@ int webconfig_hal_mesh_backhaul_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_de
 #if defined(CONFIG_IEEE80211BE) && !defined(CONFIG_GENERIC_MLO)
     update_mld_groups(data, vap_names, num_vaps, WIFI_MGR);
 #endif // CONFIG_IEEE80211BE && !CONFIG_GENERIC_MLO
-    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps, true);
+    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps);
 }
 
 int webconfig_hal_multivap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data,
@@ -2356,7 +2167,12 @@ int webconfig_hal_multivap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_dat
         vap_names[num_vaps] = mgr_vap_map->rdk_vap_array[index].vap_name;
         num_vaps++;
     }
-    return webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps, true);
+    if (webconfig_hal_vap_apply_by_name(ctrl, data, vap_names, num_vaps) != RETURN_OK) {
+        return RETURN_ERR;
+    }
+
+    // the repurposed vap follows the applied private vaps
+    return webconfig_hal_repurposed_vap_request_apply(ctrl, data);
 }
 
 static int remove_all_mac_acl_entries_from_cache_and_db(rdk_wifi_vap_info_t *current_config)
@@ -2405,6 +2221,96 @@ void webconfig_free_decoded_acl_maps(webconfig_subdoc_decoded_data_t *decoded)
     }
 }
 
+/* The repurposed vap mirrors the MAC filter of the private vap on its radio. Entries added to
+ * or removed from the repurposed vap list are applied to the private vap list, so that both
+ * stay the same and only the private vap entries are persisted. */
+static int webconfig_repurposed_vap_acl_fold(webconfig_subdoc_decoded_data_t *data)
+{
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+    int vap_index = getRepurposeTargetVapIndex();
+    rdk_wifi_vap_info_t *new_config, *current_config, *new_private, *current_private;
+    acl_entry_t *acl_entry, *private_acl_entry;
+    hash_map_t *acl_map;
+    mac_addr_str_t mac_str;
+    char *vap_name, *private_vap_name;
+
+    if ((vap_index < 0) || (isVapRepurposed(vap_index) == false)) {
+        return RETURN_OK;
+    }
+    vap_name = getVAPName(vap_index);
+    private_vap_name = getVAPName(getPrivateApFromRadioIndex(getRadioIndexFromAp(vap_index)));
+    new_config = &data->radios[convert_vap_name_to_radio_array_index(&mgr->hal_cap.wifi_prop, vap_name)]
+        .vaps.rdk_vap_array[convert_vap_name_to_array_index(&mgr->hal_cap.wifi_prop, vap_name)];
+    current_config = get_wifidb_rdk_vap_info(vap_index);
+    new_private = &data->radios[convert_vap_name_to_radio_array_index(&mgr->hal_cap.wifi_prop,
+        private_vap_name)].vaps.rdk_vap_array[convert_vap_name_to_array_index(&mgr->hal_cap.wifi_prop,
+        private_vap_name)];
+    current_private = get_wifidb_rdk_vap_info(convert_vap_name_to_index(&mgr->hal_cap.wifi_prop,
+        private_vap_name));
+    if ((current_config == NULL) || (current_private == NULL) ||
+        (new_config->acl_map == current_config->acl_map)) {
+        return RETURN_OK;
+    }
+
+    // the private list is edited on its own copy
+    if ((new_private->acl_map == current_private->acl_map) || (new_private->acl_map == NULL)) {
+        if ((acl_map = hash_map_create()) == NULL) {
+            return RETURN_ERR;
+        }
+        private_acl_entry = (new_private->acl_map == NULL) ? NULL : hash_map_get_first(new_private->acl_map);
+        while (private_acl_entry != NULL) {
+            if ((acl_entry = (acl_entry_t *)malloc(sizeof(acl_entry_t))) == NULL) {
+                hash_map_destroy(acl_map);
+                return RETURN_ERR;
+            }
+            memcpy(acl_entry, private_acl_entry, sizeof(acl_entry_t));
+            to_mac_str(acl_entry->mac, mac_str);
+            str_tolower(mac_str);
+            hash_map_put(acl_map, strdup(mac_str), acl_entry);
+            private_acl_entry = hash_map_get_next(new_private->acl_map, private_acl_entry);
+        }
+        new_private->acl_map = acl_map;
+    }
+
+    // removed from the repurposed vap list
+    acl_entry = (current_config->acl_map == NULL) ? NULL : hash_map_get_first(current_config->acl_map);
+    while (acl_entry != NULL) {
+        to_mac_str(acl_entry->mac, mac_str);
+        str_tolower(mac_str);
+        if ((new_config->acl_map == NULL) || (hash_map_get(new_config->acl_map, mac_str) == NULL)) {
+            wifi_util_info_print(WIFI_MGR, "%s:%d: del mac:%s from %s\n", __func__, __LINE__,
+                mac_str, private_vap_name);
+            free(hash_map_remove(new_private->acl_map, mac_str));
+        }
+        acl_entry = hash_map_get_next(current_config->acl_map, acl_entry);
+    }
+
+    // added to or renamed in the repurposed vap list
+    acl_entry = (new_config->acl_map == NULL) ? NULL : hash_map_get_first(new_config->acl_map);
+    while (acl_entry != NULL) {
+        to_mac_str(acl_entry->mac, mac_str);
+        str_tolower(mac_str);
+        private_acl_entry = (current_config->acl_map == NULL) ? NULL :
+                                                                 hash_map_get(current_config->acl_map, mac_str);
+        if ((private_acl_entry == NULL) || (strncmp(private_acl_entry->device_name,
+                acl_entry->device_name, sizeof(acl_entry->device_name)) != 0)) {
+            wifi_util_info_print(WIFI_MGR, "%s:%d: add mac:%s to %s\n", __func__, __LINE__,
+                mac_str, private_vap_name);
+            if ((private_acl_entry = hash_map_get(new_private->acl_map, mac_str)) != NULL) {
+                memcpy(private_acl_entry, acl_entry, sizeof(acl_entry_t));
+            } else if ((private_acl_entry = (acl_entry_t *)malloc(sizeof(acl_entry_t))) != NULL) {
+                memcpy(private_acl_entry, acl_entry, sizeof(acl_entry_t));
+                hash_map_put(new_private->acl_map, strdup(mac_str), private_acl_entry);
+            } else {
+                return RETURN_ERR;
+            }
+        }
+        acl_entry = hash_map_get_next(new_config->acl_map, acl_entry);
+    }
+
+    return RETURN_OK;
+}
+
 int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data, webconfig_subdoc_type_t subdoc_type)
 {
     unsigned int radio_index, vap_index;
@@ -2415,18 +2321,23 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
 
     mac_addr_str_t new_mac_str;
     int ret = RETURN_OK;
+    int repurposed_vap_index;
     char macfilterkey[128];
 
     memset(macfilterkey, 0, sizeof(macfilterkey));
+
+    if ((subdoc_type == webconfig_subdoc_type_mac_filter) &&
+        (webconfig_repurposed_vap_acl_fold(data) != RETURN_OK)) {
+        wifi_util_error_print(WIFI_MGR, "%s:%d: repurposed vap mac filter not applied\n", __func__,
+            __LINE__);
+        ret = RETURN_ERR;
+    }
 
     //Apply the MacFilter Data
     for(radio_index = 0; radio_index < getNumberRadios(); radio_index++) {
         for (vap_index = 0; vap_index < getNumberVAPsPerRadio(radio_index); vap_index++) {
             new_config = &data->radios[radio_index].vaps.rdk_vap_array[vap_index];
             current_config = &mgr->radio_config[radio_index].vaps.rdk_vap_array[vap_index];
-            if (isVapRepurposeTarget(new_config->vap_index)) {
-                continue;
-            }
 
             if (new_config == NULL || current_config == NULL) {
                 wifi_util_error_print(WIFI_MGR,"%s %d NULL pointer \n", __func__, __LINE__);
@@ -2435,6 +2346,11 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
 
             if (new_config->acl_map == current_config->acl_map) {
                 wifi_util_dbg_print(WIFI_MGR,"%s %d Same data %d, skipping \n", __func__, __LINE__, vap_index);
+                continue;
+            }
+
+            // the repurposed vap list was folded into the private vap list
+            if (isVapRepurposed(current_config->vap_index)) {
                 continue;
             }
 
@@ -2531,14 +2447,15 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
         }
     }
 
+    // the repurposed vap follows the private vap list
+    repurposed_vap_index = getRepurposeTargetVapIndex();
+    if ((repurposed_vap_index >= 0) && isVapRepurposed(repurposed_vap_index) &&
+        (sync_repurposed_vap_acl(repurposed_vap_index, true) != RETURN_OK)) {
+        ret = RETURN_ERR;
+    }
+
     /* Free all decoded ACL maps that are not aliased to the mgr's live cache */
     webconfig_free_decoded_acl_maps(data);
-    if (get_wifi_db_rfc_parameters()->repurposed_vap_enable) {
-        /* Prepare the companion disabled so its ACL is complete before activation. */
-        if (webconfig_reapply_repurposed_vap(ctrl) != RETURN_OK) {
-            return RETURN_ERR;
-        }
-    }
     return ret;
 }
 
@@ -2714,8 +2631,7 @@ static void reinject_vap_subdoc(wifi_ctrl_t *ctrl, webconfig_subdoc_type_t subdo
 
     webconfig_init_subdoc_data(data);
 
-    if (project_repurposed_vap_for_external(&data->u.decoded) == RETURN_OK &&
-        webconfig_encode(&ctrl->webconfig, data, subdoc_type) == webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, subdoc_type) == webconfig_error_none) {
         str = data->u.encoded.raw;
         push_event_to_ctrl_queue(str, strlen(str), wifi_event_type_webconfig,
             wifi_event_webconfig_set_data, NULL);
@@ -3276,9 +3192,22 @@ webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc
                 } else {
                     ctrl->webconfig_state |= ctrl_webconfig_state_vap_private_cfg_rsp_pending;
                     webconfig_analytic_event_data_to_hal_apply(data);
-                    ret = apply_private_repurposed_request(ctrl, data);
+                    ret = webconfig_hal_private_vap_apply(ctrl, &data->u.decoded);
                     if (ret != RETURN_OK) {
-                        return webconfig_error_apply;
+                        static uint8_t max_re_apply_retry = 0;
+                        if (max_re_apply_retry < MAX_VAP_RE_CFG_APPLY_RETRY) {
+                            if (push_data_to_apply_pending_queue(data) != RETURN_OK) {
+                                wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d vap subdoc pending queue"
+                                    " is failed\n", __func__, __LINE__);
+                                return webconfig_error_apply;
+                            }
+                            max_re_apply_retry++;
+                        } else {
+                            max_re_apply_retry = 0;
+                        }
+                        // we will improve this code later.
+                        // Beause this is not sending proper error code.
+                        ret = RETURN_OK;
                     }
                 }
             }
@@ -3942,9 +3871,7 @@ void start_station_vaps(bool is_private, bool rf_status)
             hotspot_timing_stop();
         }
     }
-    if (project_repurposed_vap_for_external(&data->u.decoded) == RETURN_OK &&
-        webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_mesh_sta) ==
-            webconfig_error_none) {
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_mesh_sta) == webconfig_error_none) {
         wifi_util_info_print(WIFI_CTRL, "%s:%d webconfig_encode success\n", __func__, __LINE__);
         str = data->u.encoded.raw;
         push_event_to_ctrl_queue(str, strlen(str), wifi_event_type_webconfig,
@@ -3971,3 +3898,4 @@ int register_with_webconfig_framework()
     wifi_util_info_print(WIFI_CTRL, "%s: Done Registering\n", __func__);
     return RETURN_OK;
 }
+
