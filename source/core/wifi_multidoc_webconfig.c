@@ -1477,13 +1477,14 @@ static pErr private_home_exec_common_handler(void *blob, const char *vap_prefix,
         if ((root == NULL) ||
             (decode_repurposed_vap_object(root, &data->u.decoded.repurposed_vap) !=
                 webconfig_error_none)) {
-            wifi_util_error_print(WIFI_CTRL, "%s: repurposed vap config parse failure\n",
-                __func__);
+            wifi_util_repurposed_error(WIFI_CTRL, "repurposed vap config parse failure\n");
             execRetVal->ErrorCode = VALIDATION_FALIED;
             strncpy(execRetVal->ErrorMsg, "Invalid RepurposedVapConfig",
                 sizeof(execRetVal->ErrorMsg) - 1);
             goto done;
         }
+        wifi_util_repurposed_info(WIFI_CTRL, "cloud private blob, repurposed vap request:%d\n",
+            data->u.decoded.repurposed_vap);
     }
 
     if (push_blob_data(data, subdoc_type) != RETURN_OK) {

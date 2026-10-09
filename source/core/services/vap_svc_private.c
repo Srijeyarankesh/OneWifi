@@ -135,11 +135,19 @@ int vap_svc_private_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_in
         repurposed = isVapRepurposeTarget(map->vap_array[i].vap_index) &&
             (strcmp(map->vap_array[i].repurposed_vap_name, WIFI_REPURPOSED_PRIVATE_2G_NAME) == 0);
         if (repurposed) {
-            // the shared mac filter is in place before the repurposed vap starts beaconing
+            wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d wifi_hal_createVAP with the "
+                "repurposed role: enabled:%d bridge:%s\n", map->vap_array[i].vap_index,
+                p_tgt_vap_map->vap_array[0].u.bss_info.enabled,
+                p_tgt_vap_map->vap_array[0].bridge_name);
+            // the shared mac filter is staged in the HAL before the repurposed vap starts
             sync_repurposed_vap_acl(map->vap_array[i].vap_index, true);
         }
 
         ret = wifi_hal_createVAP(radio_index, p_tgt_vap_map);
+        if (repurposed) {
+            wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d wifi_hal_createVAP returned %d\n",
+                map->vap_array[i].vap_index, ret);
+        }
         if (ret != RETURN_OK) {
             wifi_util_error_print(WIFI_CTRL,"%s: wifi vap create failure: radio_index:%d vap_index:%d\n",__FUNCTION__,
                                                 radio_index, map->vap_array[i].vap_index);

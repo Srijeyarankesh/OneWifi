@@ -172,7 +172,7 @@ int sync_repurposed_vap_acl(unsigned int vap_index, bool apply_to_hal)
     vap_info = get_wifidb_rdk_vap_info(vap_index);
     private_vap_info = get_wifidb_rdk_vap_info(getPrivateApFromRadioIndex(getRadioIndexFromAp(vap_index)));
     if ((vap_info == NULL) || (private_vap_info == NULL) || (private_vap_info->acl_map == NULL)) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d: no acl map for vap_index:%d\n", __func__, __LINE__,
+        wifi_util_repurposed_error(WIFI_CTRL, "no acl map for vap_index:%d\n",
             vap_index);
         return RETURN_ERR;
     }
@@ -194,8 +194,8 @@ int sync_repurposed_vap_acl(unsigned int vap_index, bool apply_to_hal)
 #else
         if (apply_to_hal && (wifi_delApAclDevice(vap_index, mac_str) != RETURN_OK)) {
 #endif
-            wifi_util_error_print(WIFI_CTRL, "%s:%d: wifi_delApAclDevice failed. vap_index:%d MAC:'%s'\n",
-                __func__, __LINE__, vap_index, mac_str);
+            wifi_util_repurposed_error(WIFI_CTRL, "wifi_delApAclDevice failed. vap_index:%d "
+                "MAC:'%s'\n", vap_index, mac_str);
             ret = RETURN_ERR;
             continue;
         }
@@ -215,8 +215,8 @@ int sync_repurposed_vap_acl(unsigned int vap_index, bool apply_to_hal)
 #else
         } else if (apply_to_hal && (wifi_addApAclDevice(vap_index, mac_str) != RETURN_OK)) {
 #endif
-            wifi_util_error_print(WIFI_CTRL, "%s:%d: wifi_addApAclDevice failed. vap_index:%d MAC:'%s'\n",
-                __func__, __LINE__, vap_index, mac_str);
+            wifi_util_repurposed_error(WIFI_CTRL, "wifi_addApAclDevice failed. vap_index:%d "
+                "MAC:'%s'\n", vap_index, mac_str);
             ret = RETURN_ERR;
         } else if ((acl_entry = (acl_entry_t *)malloc(sizeof(acl_entry_t))) != NULL) {
             memcpy(acl_entry, private_acl_entry, sizeof(acl_entry_t));
@@ -227,6 +227,8 @@ int sync_repurposed_vap_acl(unsigned int vap_index, bool apply_to_hal)
         private_acl_entry = hash_map_get_next(private_vap_info->acl_map, private_acl_entry);
     }
 
+    wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d mirrors %u entries of the private list, "
+        "hal:%d ret:%d\n", vap_index, hash_map_count(vap_info->acl_map), apply_to_hal, ret);
     return ret;
 }
 
@@ -407,9 +409,12 @@ int vap_svc_start_stop(vap_svc_t *svc, unsigned int radio_index, bool enable)
         tgt_vap_map->num_vaps = 1;
         enabled[0] = tgt_vap_map->vap_array[0].u.bss_info.enabled;
         tgt_vap_map->vap_array[0].u.bss_info.enabled &= (enable && tgt_rdk_vaps[0].exists);
+        wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d created alone: start:%d enabled:%d\n",
+            tgt_vap_map->vap_array[0].vap_index, enable,
+            tgt_vap_map->vap_array[0].u.bss_info.enabled);
         if (wifi_hal_createVAP(i, tgt_vap_map) != RETURN_OK) {
-            wifi_util_error_print(WIFI_CTRL, "%s:%d repurposed vap create failure: vap_index:%d\n",
-                __func__, __LINE__, tgt_vap_map->vap_array[0].vap_index);
+            wifi_util_repurposed_error(WIFI_CTRL, "repurposed vap create failure: vap_index:%d\n",
+                tgt_vap_map->vap_array[0].vap_index);
             // fall back to the persisted hotspot configuration
             if (enable) {
                 wifidb_reload_wifi_vap_config(tgt_vap_map->vap_array[0].vap_name);

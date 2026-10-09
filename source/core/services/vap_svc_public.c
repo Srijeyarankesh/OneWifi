@@ -171,8 +171,8 @@ int vap_svc_public_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_inf
     // hotspot configuration is rejected for a repurposed vap
     for (i = 0; i < map->num_vaps; i++) {
         if (isVapRepurposed(map->vap_array[i].vap_index)) {
-            wifi_util_error_print(WIFI_CTRL, "%s:%d vap_index:%d is repurposed\n", __func__,
-                __LINE__, map->vap_array[i].vap_index);
+            wifi_util_repurposed_error(WIFI_CTRL, "vap_index:%d is repurposed, hotspot "
+                "configuration rejected\n", map->vap_array[i].vap_index);
             return RETURN_ERR;
         }
     }

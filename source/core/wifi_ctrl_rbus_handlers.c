@@ -861,18 +861,18 @@ int notify_repurposed_vap_enable(wifi_ctrl_t *ctrl, bool enable)
     char str[128];
 
     if (ctrl == NULL) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d: NULL Pointer \n", __func__, __LINE__);
+        wifi_util_repurposed_error(WIFI_CTRL, "NULL Pointer \n");
         return RETURN_ERR;
     }
 
     snprintf(str, sizeof(str), "%s,16,%s,%s,3", WIFI_REPURPOSED_VAP_ENABLE,
         enable ? "true" : "false", enable ? "false" : "true");
 
-    wifi_util_info_print(WIFI_CTRL, "%s:%d: sending str %s as notification to WIFI_NOTIFY_SYNC_COMPONENT\n", __func__, __LINE__, str);
+    wifi_util_repurposed_info(WIFI_CTRL, "sending str %s as notification to "
+        "WIFI_NOTIFY_SYNC_COMPONENT\n", str);
     rc = get_bus_descriptor()->bus_set_string_fn(&ctrl->handle, WIFI_NOTIFY_SYNC_COMPONENT, str);
     if (rc != bus_error_success) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d: bus: bus_set_string_fn Failed %d\n", __func__,
-            __LINE__, rc);
+        wifi_util_repurposed_error(WIFI_CTRL, "bus: bus_set_string_fn Failed %d\n", rc);
         return RETURN_ERR;
     }
     return RETURN_OK;
@@ -885,7 +885,7 @@ int notify_repurposed_vap_status(wifi_ctrl_t *ctrl, bool enabled)
     raw_data_t rdata;
 
     if (ctrl == NULL) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d: NULL Pointer \n", __func__, __LINE__);
+        wifi_util_repurposed_error(WIFI_CTRL, "NULL Pointer \n");
         return RETURN_ERR;
     }
 
@@ -893,13 +893,12 @@ int notify_repurposed_vap_status(wifi_ctrl_t *ctrl, bool enabled)
     rdata.data_type = bus_data_type_boolean;
     rdata.raw_data.b = enabled;
 
-    wifi_util_info_print(WIFI_CTRL, "%s:%d: %s %d\n", __func__, __LINE__,
+    wifi_util_repurposed_info(WIFI_CTRL, "%s %d\n",
         WIFI_REPURPOSED_VAP_STATUS, enabled);
     rc = get_bus_descriptor()->bus_event_publish_fn(&ctrl->handle, WIFI_REPURPOSED_VAP_STATUS,
         &rdata);
     if (rc != bus_error_success) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d: bus_event_publish_fn failed %d\n", __func__,
-            __LINE__, rc);
+        wifi_util_repurposed_error(WIFI_CTRL, "bus_event_publish_fn failed %d\n", rc);
         return RETURN_ERR;
     }
     return RETURN_OK;
@@ -4724,8 +4723,7 @@ bus_error_t get_repurposed_vap_param(char *name, raw_data_t *p_data, bus_user_da
     int vap_index = getRepurposeTargetVapIndex();
 
     if ((name == NULL) || (p_data == NULL)) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d property name is not found\r\n", __func__,
-            __LINE__);
+        wifi_util_repurposed_error(WIFI_CTRL, "property name is not found\r\n");
         return bus_error_invalid_input;
     }
 
@@ -4735,7 +4733,7 @@ bus_error_t get_repurposed_vap_param(char *name, raw_data_t *p_data, bus_user_da
     } else if (strcmp(name, WIFI_REPURPOSED_VAP_STATUS) == 0) {
         p_data->raw_data.b = (vap_index >= 0) && isVapRepurposed(vap_index);
     } else {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d Invalid name : %s\r\n", __func__, __LINE__, name);
+        wifi_util_repurposed_error(WIFI_CTRL, "Invalid name : %s\r\n", name);
         return bus_error_invalid_input;
     }
     p_data->raw_data_len = sizeof(p_data->raw_data.b);
@@ -4750,37 +4748,37 @@ bus_error_t set_repurposed_vap_enable(char *name, raw_data_t *p_data, bus_user_d
     webconfig_subdoc_data_t *data;
 
     if ((name == NULL) || (p_data == NULL) || (strcmp(name, WIFI_REPURPOSED_VAP_ENABLE) != 0)) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d property name is not found\r\n", __func__,
-            __LINE__);
+        wifi_util_repurposed_error(WIFI_CTRL, "property name is not found\r\n");
         return bus_error_invalid_input;
     }
 
     if (p_data->data_type != bus_data_type_boolean) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d-%s wrong bus data_type:%x\n", __func__, __LINE__,
+        wifi_util_repurposed_error(WIFI_CTRL, "%s wrong bus data_type:%x\n",
             name, p_data->data_type);
         return bus_error_invalid_input;
     }
 
     if (getRepurposeTargetVapIndex() < 0) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d no vap to repurpose\n", __func__, __LINE__);
+        wifi_util_repurposed_error(WIFI_CTRL, "no vap to repurpose\n");
         return bus_error_invalid_operation;
     }
 
     data = (webconfig_subdoc_data_t *)malloc(sizeof(webconfig_subdoc_data_t));
     if (data == NULL) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d Malloc failed for name %s\n", __func__, __LINE__,
+        wifi_util_repurposed_error(WIFI_CTRL, "Malloc failed for name %s\n",
             name);
         return bus_error_general;
     }
 
+    wifi_util_repurposed_info(WIFI_CTRL, "%s set to %d, target vap_index:%d\n", name,
+        p_data->raw_data.b, getRepurposeTargetVapIndex());
     // the private subdoc carries the request, enabled with the repurposed vap configuration
     webconfig_init_subdoc_data(data);
     data->u.decoded.repurposed_vap = p_data->raw_data.b ? webconfig_repurposed_vap_enable :
                                                           webconfig_repurposed_vap_disable;
     if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_private) !=
         webconfig_error_none) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d Error in encoding private subdoc\n", __func__,
-            __LINE__);
+        wifi_util_repurposed_error(WIFI_CTRL, "Error in encoding private subdoc\n");
         webconfig_data_free(data);
         free(data);
         return bus_error_general;
@@ -4788,6 +4786,8 @@ bus_error_t set_repurposed_vap_enable(char *name, raw_data_t *p_data, bus_user_d
 
     push_event_to_ctrl_queue(data->u.encoded.raw, strlen(data->u.encoded.raw),
         wifi_event_type_webconfig, wifi_event_webconfig_set_data, NULL);
+    wifi_util_repurposed_info(WIFI_CTRL, "private subdoc with the %s request queued\n",
+        p_data->raw_data.b ? "enable" : "disable");
     webconfig_data_free(data);
     free(data);
 

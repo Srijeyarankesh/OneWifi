@@ -195,8 +195,8 @@ void process_btm_request_send_event(void *data, uint32_t len) {
     }
 
     if (isVapRepurposed(msg->ap_index)) {
-        wifi_util_info_print(WIFI_CTRL, "%s:%d steering is disabled on vap_index:%d\n", __func__,
-            __LINE__, msg->ap_index);
+        wifi_util_repurposed_info(WIFI_CTRL, "steering is disabled on vap_index:%d\n",
+            msg->ap_index);
         return;
     }
 
@@ -1755,7 +1755,7 @@ int add_acl_entry_to_vap(char *mac_str, int vap_index, int reason, long long int
     }
 
     if (isVapRepurposed(vap_index)) {
-        wifi_util_dbg_print(WIFI_CTRL, "%s:%d vap_index %d is repurposed\n", __func__, __LINE__,
+        wifi_util_repurposed_dbg(WIFI_CTRL, "vap_index %d is repurposed, no greylist entry\n",
             vap_index);
         return RETURN_ERR;
     }
@@ -2611,6 +2611,8 @@ static void process_wps_results_event(wifi_wps_event_t *wps_event)
 
     // wps is disabled on the repurposed vap, whose configuration is never persisted
     if (isVapRepurposed(vap_index)) {
+        wifi_util_repurposed_info(WIFI_CTRL, "wps event %d ignored on vap_index:%d\n",
+            wps_event->event, vap_index);
         return;
     }
 
@@ -2657,6 +2659,8 @@ void process_factory_reset_command(bool type)
 
     // the repurposed vap is disabled by default, the hotspot vap is restored while wifidb has it
     if (repurposed) {
+        wifi_util_repurposed_info(WIFI_CTRL, "factory reset: restoring vap_index:%d as hotspot\n",
+            repurposed_vap_index);
         webconfig_hal_repurposed_vap_apply(&p_wifi_mgr->ctrl, false, NULL);
     }
 
@@ -3208,8 +3212,7 @@ void process_wps_command_event(unsigned int vap_index)
 {
 #ifdef FEATURE_SUPPORT_WPS
     if (isVapRepurposed(vap_index)) {
-        wifi_util_info_print(WIFI_CTRL, "%s:%d wps is disabled on vap_index:%d\n", __func__,
-            __LINE__, vap_index);
+        wifi_util_repurposed_info(WIFI_CTRL, "wps is disabled on vap_index:%d\n", vap_index);
         return;
     }
     wifi_util_info_print(WIFI_CTRL,"%s:%d wifi wps test vap index = %d\n",__func__, __LINE__, vap_index);
@@ -3229,8 +3232,8 @@ void process_wps_pin_command_event(void *data)
     wifi_util_info_print(WIFI_CTRL,"%s:%d wifi wps pin vap index = %d, wps_pin:%s\n",__func__, __LINE__,
                                         wps_config->vap_index, wps_config->wps_pin);
     if (isVapRepurposed(wps_config->vap_index)) {
-        wifi_util_info_print(WIFI_CTRL, "%s:%d wps is disabled on vap_index:%d\n", __func__,
-            __LINE__, wps_config->vap_index);
+        wifi_util_repurposed_info(WIFI_CTRL, "wps is disabled on vap_index:%d\n",
+            wps_config->vap_index);
         return;
     }
     wifi_hal_setApWpsPin(wps_config->vap_index, wps_config->wps_pin);
