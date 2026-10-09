@@ -1575,6 +1575,13 @@ void WiFiBlastClient(void)
 
             snprintf(macStr, sizeof(macStr), MAC_FMT, MAC_ARG(g_active_msmt->curStepData.DestMac));
 
+            // a client of the repurposed vap is blasted on its interface, like a private vap client
+            if (isVapRepurposed(apIndex)) {
+                wifi_util_repurposed_info(WIFI_BLASTER, "step %u client %s on vap_index:%d "
+                    "interface:%s\n", cfg->Step[StepCount].StepId, macStr, apIndex,
+                    (char *)interface_name);
+            }
+
             wifi_util_dbg_print(WIFI_BLASTER, "%s:%d:\n=========START THE TEST=========\n", __func__, __LINE__);
             active_msmt_log_message(BLASTER_DEBUG_LOG, "\n=========START THE TEST=========\n");
             active_msmt_log_message(BLASTER_INFO_LOG, "Blaster test is initiated for Dest mac [%s]\n", macStr);;
