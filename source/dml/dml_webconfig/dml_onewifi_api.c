@@ -2008,6 +2008,8 @@ bool wifi_factory_reset(bool factory_reset_all_vaps)
         //clearing wpa3_personal_compatibility mode after wifi restore
         rfc_param->wpa3_compatibility_enable = FALSE;
         //the repurposed vap is disabled by default, the private subdoc below restores the hotspot vap
+        wifi_util_repurposed_info(WIFI_DMCLI, "wifi factory reset: repurposed vap rfc %d -> 0\n",
+            rfc_param->repurposed_vap_enable);
         rfc_param->repurposed_vap_enable = FALSE;
         get_wifidb_obj()->desc.update_rfc_config_fn(0, rfc_param);
 

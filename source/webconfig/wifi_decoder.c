@@ -4168,7 +4168,7 @@ webconfig_error_t decode_repurposed_vap_object(const cJSON *json, webconfig_repu
     const cJSON *obj_array, *obj, *param;
 
     if ((json == NULL) || (config == NULL)) {
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: NULL pointer\n", __func__, __LINE__);
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "NULL pointer\n");
         return webconfig_error_decode;
     }
 
@@ -4180,8 +4180,7 @@ webconfig_error_t decode_repurposed_vap_object(const cJSON *json, webconfig_repu
     }
 
     if ((cJSON_IsArray(obj_array) == false) || (cJSON_GetArraySize(obj_array) != 1)) {
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: Validation failed for RepurposedVapConfig\n",
-            __func__, __LINE__);
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "Validation failed for RepurposedVapConfig\n");
         return webconfig_error_decode;
     }
 
@@ -4189,6 +4188,8 @@ webconfig_error_t decode_repurposed_vap_object(const cJSON *json, webconfig_repu
     decode_param_bool(obj, "Enabled", param);
     *config = cJSON_IsTrue(param) ? webconfig_repurposed_vap_enable :
                                     webconfig_repurposed_vap_disable;
+    wifi_util_repurposed_info(WIFI_WEBCONFIG, "RepurposedVapConfig Enabled:%d\n",
+        *config == webconfig_repurposed_vap_enable);
 
     return webconfig_error_none;
 }

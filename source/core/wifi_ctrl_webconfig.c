@@ -883,8 +883,8 @@ int webconfig_hal_vap_apply_by_name(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_
 
         // the repurposed vap is configured only from the private vaps
         if (isVapRepurposed(tgt_vap_index)) {
-            wifi_util_info_print(WIFI_MGR, "%s:%d: %s is repurposed, configuration rejected\n",
-                __func__, __LINE__, vap_names[i]);
+            wifi_util_repurposed_info(WIFI_MGR, "%s is repurposed, configuration rejected\n",
+                vap_names[i]);
             continue;
         }
 
@@ -1761,13 +1761,14 @@ int init_repurposed_vap_config(void)
     wifi_vap_info_t vap_info;
 
     if ((vap_index < 0) || (get_wifi_db_rfc_parameters()->repurposed_vap_enable == false)) {
+        wifi_util_repurposed_info(WIFI_CTRL, "boot: target vap_index:%d rfc:%d, not repurposed\n",
+            vap_index, get_wifi_db_rfc_parameters()->repurposed_vap_enable);
         return RETURN_OK;
     }
 
     if (derive_repurposed_vap_config(&mgr->hal_cap.wifi_prop, mgr->radio_config, &vap_info) !=
         webconfig_error_none) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d: vap_index:%d stays a hotspot\n", __func__,
-            __LINE__, vap_index);
+        wifi_util_repurposed_error(WIFI_CTRL, "vap_index:%d stays a hotspot\n", vap_index);
         return RETURN_ERR;
     }
 
@@ -1776,8 +1777,8 @@ int init_repurposed_vap_config(void)
     pthread_mutex_unlock(&mgr->data_cache_lock);
     sync_repurposed_vap_acl(vap_index, false);
 
-    wifi_util_info_print(WIFI_CTRL, "%s:%d: vap_index:%d repurposed into the private network\n",
-        __func__, __LINE__, vap_index);
+    wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d repurposed into the private network\n",
+        vap_index);
     return RETURN_OK;
 }
 
@@ -1791,8 +1792,8 @@ static int webconfig_hal_repurposed_vap_restore(wifi_ctrl_t *ctrl, int vap_index
     int ret;
 
     if ((svc == NULL) || (wifidb_reload_wifi_vap_config(getVAPName(vap_index)) != RETURN_OK)) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d: vap_index:%d hotspot config not restored\n",
-            __func__, __LINE__, vap_index);
+        wifi_util_repurposed_error(WIFI_CTRL, "vap_index:%d hotspot config not restored\n",
+            vap_index);
         return RETURN_ERR;
     }
 
@@ -1808,9 +1809,18 @@ static int webconfig_hal_repurposed_vap_restore(wifi_ctrl_t *ctrl, int vap_index
     bus_get_vap_init_parameter(WIFI_DEVICE_TUNNEL_STATUS, &tunnel_status);
     map->vap_array[0].u.bss_info.enabled = (tunnel_status == DEVICE_TUNNEL_UP) &&
         get_wifi_db_rfc_parameters()->hotspot_secure_2g_last_enabled;
+    wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d restoring the hotspot: tunnel:%u "
+        "enabled:%d bridge:%s\n", vap_index, tunnel_status, map->vap_array[0].u.bss_info.enabled,
+        map->vap_array[0].bridge_name);
 
     ret = svc->update_fn(svc, map->vap_array[0].radio_index, map, &rdk_vap_info);
     free(map);
+    if (ret != RETURN_OK) {
+        wifi_util_repurposed_error(WIFI_CTRL, "vap_index:%d hotspot not restored:%d\n",
+            vap_index, ret);
+    } else {
+        wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d hotspot restored\n", vap_index);
+    }
     return ret;
 }
 
@@ -1832,6 +1842,8 @@ int webconfig_hal_repurposed_vap_apply(wifi_ctrl_t *ctrl, bool enable,
         return enable ? RETURN_ERR : RETURN_OK;
     }
     repurposed = isVapRepurposed(vap_index);
+    wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d enable:%d repurposed:%d config:%s\n",
+        vap_index, enable, repurposed, (vap_config != NULL) ? "request" : "derived");
     if (enable == false) {
         return repurposed ? webconfig_hal_repurposed_vap_restore(ctrl, vap_index) : RETURN_OK;
     }
@@ -1847,6 +1859,8 @@ int webconfig_hal_repurposed_vap_apply(wifi_ctrl_t *ctrl, bool enable,
         memcpy(&map->vap_array[0], vap_config, sizeof(wifi_vap_info_t));
     } else if (derive_repurposed_vap_config(&mgr->hal_cap.wifi_prop, mgr->radio_config,
                    &map->vap_array[0]) != webconfig_error_none) {
+        wifi_util_repurposed_error(WIFI_CTRL, "vap_index:%d cannot be derived from the private "
+            "vaps\n", vap_index);
         free(map);
         // a repurposed vap cannot follow the private configuration anymore
         if (repurposed) {
@@ -1857,6 +1871,8 @@ int webconfig_hal_repurposed_vap_apply(wifi_ctrl_t *ctrl, bool enable,
     if (repurposed &&
         (is_vap_param_config_changed(get_wifidb_vap_parameters(vap_index), &map->vap_array[0],
              &rdk_vap_info, &rdk_vap_info, false) == false)) {
+        wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d unchanged, nothing to apply\n",
+            vap_index);
         free(map);
         return RETURN_OK;
     }
@@ -1865,9 +1881,12 @@ int webconfig_hal_repurposed_vap_apply(wifi_ctrl_t *ctrl, bool enable,
     free(map);
     if (ret != RETURN_OK) {
         // do not leave the vap down, it serves as hotspot until the next attempt
-        wifi_util_error_print(WIFI_CTRL, "%s:%d: vap_index:%d not repurposed, restoring hotspot\n",
-            __func__, __LINE__, vap_index);
+        wifi_util_repurposed_error(WIFI_CTRL, "vap_index:%d not repurposed, restoring hotspot\n",
+            vap_index);
         webconfig_hal_repurposed_vap_restore(ctrl, vap_index);
+    } else {
+        wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d applied by the private service\n",
+            vap_index);
     }
     return ret;
 }
@@ -1896,22 +1915,27 @@ static int webconfig_hal_repurposed_vap_request_apply(wifi_ctrl_t *ctrl,
     }
 
     applied = (vap_index >= 0) && isVapRepurposed(vap_index);
+    wifi_util_repurposed_info(WIFI_CTRL, "request:%d rfc:%d applied:%d -> enable:%d\n",
+        data->repurposed_vap, rfc_param->repurposed_vap_enable, applied, enable);
     ret = webconfig_hal_repurposed_vap_apply(ctrl, enable, vap_config);
     if (ret != RETURN_OK) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d: repurposed vap %s failed\n", __func__, __LINE__,
+        wifi_util_repurposed_error(WIFI_CTRL, "repurposed vap %s failed\n",
             enable ? "enable" : "disable");
         // a reconciliation is retried on the next private change, the request is rejected
         ret = (data->repurposed_vap == webconfig_repurposed_vap_unchanged) ? RETURN_OK : RETURN_ERR;
     } else if (enable != rfc_param->repurposed_vap_enable) {
+        wifi_util_repurposed_info(WIFI_CTRL, "persisting the RFC as %d\n", enable);
         rfc_param->repurposed_vap_enable = enable;
         if (get_wifidb_obj()->desc.update_rfc_config_fn(0, rfc_param) != RETURN_OK) {
-            wifi_util_error_print(WIFI_CTRL, "%s:%d: failed to persist the RFC\n", __func__, __LINE__);
+            wifi_util_repurposed_error(WIFI_CTRL, "failed to persist the RFC\n");
         }
         notify_repurposed_vap_enable(ctrl, enable);
     }
 
     ret_applied = (vap_index >= 0) && isVapRepurposed(vap_index);
     if (applied != ret_applied) {
+        wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d repurposed status %d -> %d\n",
+            vap_index, applied, ret_applied);
         // the mac filter and dml views of the vap changed
         ctrl->webconfig_state |= (ctrl_webconfig_state_macfilter_cfg_rsp_pending |
             ctrl_webconfig_state_vap_all_cfg_rsp_pending);
@@ -1939,6 +1963,8 @@ static bool webconfig_repurposed_vap_security_migrate(webconfig_subdoc_decoded_d
                 (vap_info->u.bss_info.security.mode != wifi_security_mode_wpa2_personal)) {
                 continue;
             }
+            wifi_util_repurposed_info(WIFI_CTRL, "%s WPA2-Personal -> WPA3-Personal-Transition\n",
+                vap_info->vap_name);
             vap_info->u.bss_info.security.mode = wifi_security_mode_wpa3_transition;
             vap_info->u.bss_info.security.wpa3_transition_disable = false;
             vap_info->u.bss_info.security.mfp = wifi_mfp_cfg_optional;
@@ -2278,7 +2304,7 @@ static int webconfig_repurposed_vap_acl_fold(webconfig_subdoc_decoded_data_t *da
         to_mac_str(acl_entry->mac, mac_str);
         str_tolower(mac_str);
         if ((new_config->acl_map == NULL) || (hash_map_get(new_config->acl_map, mac_str) == NULL)) {
-            wifi_util_info_print(WIFI_MGR, "%s:%d: del mac:%s from %s\n", __func__, __LINE__,
+            wifi_util_repurposed_info(WIFI_MGR, "del mac:%s from %s\n",
                 mac_str, private_vap_name);
             free(hash_map_remove(new_private->acl_map, mac_str));
         }
@@ -2294,7 +2320,7 @@ static int webconfig_repurposed_vap_acl_fold(webconfig_subdoc_decoded_data_t *da
                                                                  hash_map_get(current_config->acl_map, mac_str);
         if ((private_acl_entry == NULL) || (strncmp(private_acl_entry->device_name,
                 acl_entry->device_name, sizeof(acl_entry->device_name)) != 0)) {
-            wifi_util_info_print(WIFI_MGR, "%s:%d: add mac:%s to %s\n", __func__, __LINE__,
+            wifi_util_repurposed_info(WIFI_MGR, "add mac:%s to %s\n",
                 mac_str, private_vap_name);
             if ((private_acl_entry = hash_map_get(new_private->acl_map, mac_str)) != NULL) {
                 memcpy(private_acl_entry, acl_entry, sizeof(acl_entry_t));
@@ -2328,8 +2354,7 @@ int webconfig_hal_mac_filter_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_d
 
     if ((subdoc_type == webconfig_subdoc_type_mac_filter) &&
         (webconfig_repurposed_vap_acl_fold(data) != RETURN_OK)) {
-        wifi_util_error_print(WIFI_MGR, "%s:%d: repurposed vap mac filter not applied\n", __func__,
-            __LINE__);
+        wifi_util_repurposed_error(WIFI_MGR, "repurposed vap mac filter not applied\n");
         ret = RETURN_ERR;
     }
 

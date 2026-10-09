@@ -2156,7 +2156,7 @@ webconfig_error_t encode_repurposed_vap_object(webconfig_repurposed_vap_t config
     cJSON *obj_array, *obj, *vap_obj;
 
     if (json == NULL) {
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: NULL pointer\n", __func__, __LINE__);
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "NULL pointer\n");
         return webconfig_error_encode;
     }
 
@@ -2171,18 +2171,19 @@ webconfig_error_t encode_repurposed_vap_object(webconfig_repurposed_vap_t config
     obj = cJSON_CreateObject();
     cJSON_AddItemToArray(obj_array, obj);
     cJSON_AddBoolToObject(obj, "Enabled", config == webconfig_repurposed_vap_enable);
+    wifi_util_repurposed_info(WIFI_WEBCONFIG, "RepurposedVapConfig Enabled:%d\n",
+        config == webconfig_repurposed_vap_enable);
 
     // an enable request carries the repurposed vap configuration
     if (config == webconfig_repurposed_vap_enable) {
         if ((vap_info == NULL) || (rdk_vap_info == NULL)) {
-            wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: NULL vap pointer\n", __func__, __LINE__);
+            wifi_util_repurposed_error(WIFI_WEBCONFIG, "NULL vap pointer\n");
             return webconfig_error_encode;
         }
         vap_obj = cJSON_CreateObject();
         cJSON_AddItemToObject(obj, "VapConfig", vap_obj);
         if (encode_private_vap_object(vap_info, rdk_vap_info, vap_obj) != webconfig_error_none) {
-            wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: Failed to encode %s\n", __func__,
-                __LINE__, vap_info->vap_name);
+            wifi_util_repurposed_error(WIFI_WEBCONFIG, "Failed to encode %s\n", vap_info->vap_name);
             return webconfig_error_encode;
         }
     }

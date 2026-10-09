@@ -2608,6 +2608,8 @@ int wifidb_update_wifi_vap_config(int radio_index, wifi_vap_info_map_t *config,
     {
         // a repurposed vap configuration is derived at runtime, it is never persisted
         if (strcmp(config->vap_array[i].repurposed_vap_name, WIFI_REPURPOSED_PRIVATE_2G_NAME) == 0) {
+            wifi_util_repurposed_dbg(WIFI_DB, "%s holds the repurposed role, not persisted\n",
+                config->vap_array[i].vap_name);
             continue;
         }
         wifidb_print("%s:%d Updated WIFI DB. vap Config updated successful for radio %s and vap_name %s. \n",__func__, __LINE__,name,config->vap_array[i].vap_name);
@@ -7001,13 +7003,13 @@ int wifidb_reload_wifi_vap_config(char *vap_name)
 
     vap_index = convert_vap_name_to_index(&g_wifidb->hal_cap.wifi_prop, vap_name);
     if ((vap_index < 0) || isVapSTAMesh(vap_index)) {
-        wifi_util_error_print(WIFI_DB, "%s:%d: %s invalid vap name\n", __func__, __LINE__, vap_name);
+        wifi_util_repurposed_error(WIFI_DB, "%s invalid vap name\n", vap_name);
         return RETURN_ERR;
     }
     l_vap_info = get_wifidb_vap_parameters(vap_index);
     l_rdk_vap_info = get_wifidb_rdk_vap_info(vap_index);
     if ((l_vap_info == NULL) || (l_rdk_vap_info == NULL)) {
-        wifi_util_error_print(WIFI_DB, "%s:%d: no cache for vap index %d\n", __func__, __LINE__,
+        wifi_util_repurposed_error(WIFI_DB, "no cache for vap index %d\n",
             vap_index);
         return RETURN_ERR;
     }
@@ -7017,7 +7019,7 @@ int wifidb_reload_wifi_vap_config(char *vap_name)
     memcpy(vap_info.u.bss_info.bssid, l_vap_info->u.bss_info.bssid, sizeof(vap_info.u.bss_info.bssid));
     memcpy(&rdk_vap_info, l_rdk_vap_info, sizeof(rdk_vap_info));
     if (wifidb_get_wifi_vap_info(vap_name, &vap_info, &rdk_vap_info) != RETURN_OK) {
-        wifi_util_error_print(WIFI_DB, "%s:%d: failed to get %s config\n", __func__, __LINE__,
+        wifi_util_repurposed_error(WIFI_DB, "failed to get %s config\n",
             vap_name);
         return RETURN_ERR;
     }
@@ -7048,7 +7050,7 @@ int wifidb_reload_wifi_vap_config(char *vap_name)
     wifidb_load_wifi_macfilter_config(vap_name);
     pthread_mutex_unlock(&g_wifidb->data_cache_lock);
 
-    wifi_util_info_print(WIFI_DB, "%s:%d: %s reloaded from wifidb\n", __func__, __LINE__, vap_name);
+    wifi_util_repurposed_info(WIFI_DB, "%s reloaded from wifidb\n", vap_name);
     return RETURN_OK;
 }
 

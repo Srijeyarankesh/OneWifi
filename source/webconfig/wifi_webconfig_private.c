@@ -76,15 +76,14 @@ webconfig_error_t derive_repurposed_vap_config(wifi_platform_property_t *wifi_pr
     radio_index = convert_vap_name_to_radio_array_index(wifi_prop, REPURPOSED_VAP_NAME);
     vap_array_index = convert_vap_name_to_array_index(wifi_prop, REPURPOSED_VAP_NAME);
     if ((radio_index < 0) || (vap_array_index < 0)) {
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: no %s vap\n", __func__, __LINE__,
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "no %s vap\n",
             REPURPOSED_VAP_NAME);
         return webconfig_error_not_permitted;
     }
     target = &radios[radio_index].vaps.vap_map.vap_array[vap_array_index];
     source = get_private_vap(wifi_prop, radios, radio_index);
     if (source == NULL) {
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: no private vap on radio %d\n", __func__,
-            __LINE__, radio_index);
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "no private vap on radio %d\n", radio_index);
         return webconfig_error_decode;
     }
 
@@ -108,16 +107,15 @@ webconfig_error_t derive_repurposed_vap_config(wifi_platform_property_t *wifi_pr
         }
     }
     if ((key_source == NULL) || !is_personal_security_mode(key_source->u.bss_info.security.mode)) {
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: no private passphrase available\n", __func__,
-            __LINE__);
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "no private passphrase available\n");
         return webconfig_error_decode;
     }
     // SAE needs a passphrase, a raw 64 hex digit PSK cannot be used
     key_len = strnlen(key_source->u.bss_info.security.u.key.key,
         sizeof(key_source->u.bss_info.security.u.key.key));
     if ((key_len < 8) || (key_len > 63)) {
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: invalid passphrase length:%zu on %s\n",
-            __func__, __LINE__, key_len, key_source->vap_name);
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "invalid passphrase length:%zu on %s\n",
+            key_len, key_source->vap_name);
         return webconfig_error_decode;
     }
 
@@ -155,6 +153,12 @@ webconfig_error_t derive_repurposed_vap_config(wifi_platform_property_t *wifi_pr
     vap_info->u.bss_info.mld_info.common_info.mld_id = 255;
     vap_info->u.bss_info.mld_info.common_info.mld_link_id = 255;
 
+    wifi_util_repurposed_info(WIFI_WEBCONFIG, "vap_index:%d %s derived from %s: enabled:%d "
+        "bridge:%s ssid:%s security mode:%d encr:%d passphrase of %s mac filter:%d/%d\n",
+        vap_info->vap_index, vap_info->vap_name, source->vap_name, vap_info->u.bss_info.enabled,
+        vap_info->bridge_name, vap_info->u.bss_info.ssid, security->mode, security->encr,
+        key_source->vap_name, vap_info->u.bss_info.mac_filter_enable,
+        vap_info->u.bss_info.mac_filter_mode);
     return webconfig_error_none;
 }
 
@@ -258,8 +262,7 @@ webconfig_error_t encode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
     if (params->repurposed_vap == webconfig_repurposed_vap_enable) {
         if (derive_repurposed_vap_config(&params->hal_cap.wifi_prop, params->radios,
                 &repurposed_vap) != webconfig_error_none) {
-            wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: Failed to derive repurposed vap\n",
-                __func__, __LINE__);
+            wifi_util_repurposed_error(WIFI_WEBCONFIG, "Failed to derive repurposed vap\n");
             cJSON_Delete(json);
             return webconfig_error_encode;
         }
@@ -269,8 +272,7 @@ webconfig_error_t encode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
     }
     if (encode_repurposed_vap_object(params->repurposed_vap, &repurposed_vap, repurposed_rdk_vap,
             json) != webconfig_error_none) {
-        wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: Failed to encode repurposed vap object\n",
-            __func__, __LINE__);
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "Failed to encode repurposed vap object\n");
         cJSON_Delete(json);
         return webconfig_error_encode;
     }
@@ -435,15 +437,14 @@ webconfig_error_t decode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
             "RepurposedVapConfig"), 0), "VapConfig");
         name = cJSON_GetStringValue(cJSON_GetObjectItem(obj_vap, "VapName"));
         if ((name == NULL) || (strcmp(name, REPURPOSED_VAP_NAME) != 0)) {
-            wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: repurposed vap object not present\n",
-                __func__, __LINE__);
+            wifi_util_repurposed_error(WIFI_WEBCONFIG, "repurposed vap object not present\n");
             cJSON_Delete(json);
             return webconfig_error_invalid_subdoc;
         }
         radio_index = convert_vap_name_to_radio_array_index(&params->hal_cap.wifi_prop, name);
         vap_array_index = convert_vap_name_to_array_index(&params->hal_cap.wifi_prop, name);
         if (((int)radio_index < 0) || ((int)vap_array_index < 0)) {
-            wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: Invalid index\n", __func__, __LINE__);
+            wifi_util_repurposed_error(WIFI_WEBCONFIG, "Invalid index for %s\n", name);
             cJSON_Delete(json);
             return webconfig_error_invalid_subdoc;
         }
@@ -453,11 +454,14 @@ webconfig_error_t decode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
         if ((decode_private_vap_object(obj_vap, vap_info, rdk_vap_info,
                 &params->hal_cap.wifi_prop) != webconfig_error_none) ||
             (strcmp(vap_info->repurposed_vap_name, WIFI_REPURPOSED_PRIVATE_2G_NAME) != 0)) {
-            wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: repurposed vap object validation failed\n",
-                __func__, __LINE__);
+            wifi_util_repurposed_error(WIFI_WEBCONFIG, "repurposed vap object validation failed\n");
             cJSON_Delete(json);
             return webconfig_error_decode;
         }
+        wifi_util_repurposed_info(WIFI_WEBCONFIG, "vap_index:%d %s decoded: enabled:%d bridge:%s "
+            "security mode:%d\n", vap_info->vap_index, vap_info->vap_name,
+            vap_info->u.bss_info.enabled, vap_info->bridge_name,
+            vap_info->u.bss_info.security.mode);
     }
 
     wifi_util_info_print(WIFI_WEBCONFIG, "%s:%d: decode success\n", __func__, __LINE__);
