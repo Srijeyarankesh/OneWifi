@@ -56,7 +56,7 @@ void sensing_app_assoc_device_event(wifi_app_t *apps, void *data)
 
     assoc_dev_data_t *assoc_data = (assoc_dev_data_t *) data;
 
-    if (isVapPrivate(assoc_data->ap_index)) {
+    if (isVapPrivateNetwork(assoc_data->ap_index)) {
         mac_addr_str_t str_sta_mac = { 0 };
 
         to_mac_str(assoc_data->dev_stats.cli_MACAddress, str_sta_mac);
@@ -73,7 +73,7 @@ void sensing_app_disassoc_device_event(wifi_app_t *apps, void *data)
 
     assoc_dev_data_t *assoc_data = (assoc_dev_data_t *) data;
 
-    if (isVapPrivate(assoc_data->ap_index)) {
+    if (isVapPrivateNetwork(assoc_data->ap_index)) {
         mac_addr_str_t str_sta_mac = { 0 };
 
         to_mac_str(assoc_data->dev_stats.cli_MACAddress, str_sta_mac);

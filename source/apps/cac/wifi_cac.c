@@ -555,7 +555,9 @@ void cac_mgmt_frame_event(wifi_app_t *app, frame_data_t *msg, int type)
 
     memset(vap_name, 0, sizeof(vap_name));
 
-    if (!is_vap_hotspot(&((wifi_mgr_t *)get_wifimgr_obj())->hal_cap.wifi_prop, msg->frame.ap_index)) {
+    /* CAC is for the hotspot VAPs; a repurposed VAP is a private network VAP. */
+    if (!is_vap_hotspot(&((wifi_mgr_t *)get_wifimgr_obj())->hal_cap.wifi_prop, msg->frame.ap_index) ||
+        isVapRepurposed(msg->frame.ap_index)) {
         wifi_util_dbg_print(WIFI_APPS, "%s:%d cac frame hook is used for hotspot vap, ap_index = :%d \n", __func__, __LINE__, msg->frame.ap_index);
         return;
     }
@@ -1016,7 +1018,9 @@ int cac_event_hal_assoc_device(wifi_app_t *apps, void *arg)
 
     assoc_dev_data_t *assoc_data = (assoc_dev_data_t *)arg;
 
-    if (!is_vap_hotspot(&((wifi_mgr_t *)get_wifimgr_obj())->hal_cap.wifi_prop, assoc_data->ap_index)) {
+    /* CAC is for the hotspot VAPs; a repurposed VAP is a private network VAP. */
+    if (!is_vap_hotspot(&((wifi_mgr_t *)get_wifimgr_obj())->hal_cap.wifi_prop, assoc_data->ap_index) ||
+        isVapRepurposed(assoc_data->ap_index)) {
         wifi_util_info_print(WIFI_APPS, "%s:%d cac postassoc is used for hotspot vap, ap_index = :%d \n", __func__, __LINE__, assoc_data->ap_index);
         return RETURN_OK;
     }
@@ -1176,7 +1180,9 @@ int cac_mgmt_frame_hook(int ap_index, wifi_mgmtFrameType_t type)
 
     wifi_util_dbg_print(WIFI_APPS, "%s:%d received mgmt frame hook for ap index:%d type:%d \n", __func__, __LINE__, ap_index, type);
 
-    if (!is_vap_hotspot(&((wifi_mgr_t *)get_wifimgr_obj())->hal_cap.wifi_prop, ap_index)) {
+    /* CAC is for the hotspot VAPs; a repurposed VAP is a private network VAP. */
+    if (!is_vap_hotspot(&((wifi_mgr_t *)get_wifimgr_obj())->hal_cap.wifi_prop, ap_index) ||
+        isVapRepurposed(ap_index)) {
         wifi_util_dbg_print(WIFI_APPS, "%s:%d cac frame hook is used for hotspot vap, ap_index = :%d \n", __func__, __LINE__, ap_index);
         return NL_OK;
     }
