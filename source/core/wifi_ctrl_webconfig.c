@@ -1754,6 +1754,7 @@ int webconfig_cac_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data
 }
 
 #define L2NET_MAX_INSTANCES 32
+#define L2NET_NAME "dmsb.l2net.%d.Name"
 #define L2NET_WIFI_MEMBERS "dmsb.l2net.%d.Members.OneWiFi"
 
 static const wifi_interface_name_idex_map_t *repurposed_vap_if_prop(unsigned int vap_index)
@@ -1777,7 +1778,7 @@ static int l2net_instance(wifi_ccsp_desc_t *ccsp, const char *bridge_name)
     int i;
 
     for (i = 1; i <= L2NET_MAX_INSTANCES; i++) {
-        snprintf(name, sizeof(name), "dmsb.l2net.%d.Name", i);
+        snprintf(name, sizeof(name), L2NET_NAME, i);
         if ((ccsp->psm_get_value_fn(name, value, sizeof(value)) != NULL) &&
             (strcmp(value, bridge_name) == 0)) {
             return i;
@@ -1833,22 +1834,133 @@ static int l2net_set_wifi_member(wifi_ccsp_desc_t *ccsp, int instance, const cha
     return RETURN_OK;
 }
 
-/* The bridge manager (bridgeUtils) attaches to a bridge the Wi-Fi interfaces listed for it in
- * PSM (dmsb.l2net.<n>.Members.OneWiFi) and detaches the other ones, on multinet-up and
- * multinet-syncMembers. The GRE tunnel raises these for the hotspot bridges after boot and
- * whenever it is re-created, so the target interface must be listed under the bridge of its
- * role only: the private 2.4 GHz bridge while repurposed, its own hotspot bridge otherwise. It is
- * added to the bridge of the role before it is removed from the other one, so that a sync in
- * between keeps it where the HAL attached it. Platforms without these PSM records are left
- * alone. */
-int sync_repurposed_vap_bridge_members(void)
+/* Whether a member list names the interface, and whether it names other interfaces. */
+static void l2net_members_check(const char *members, const char *ifname, bool *listed,
+    bool *others)
+{
+    char list[256], *token, *rest = NULL;
+
+    *listed = false;
+    *others = false;
+    snprintf(list, sizeof(list), "%s", members);
+    for (token = strtok_r(list, " ", &rest); token != NULL; token = strtok_r(NULL, " ", &rest)) {
+        if (strcmp(token, ifname) == 0) {
+            *listed = true;
+        } else {
+            *others = true;
+        }
+    }
+}
+
+/* Read the Wi-Fi members of an l2net instance. A record that cannot be read is absent when PSM
+ * answers for the instance name, else PSM cannot be reached. */
+static int l2net_get_wifi_members(wifi_ccsp_desc_t *ccsp, int instance, char *value,
+    unsigned int size, bool *present)
+{
+    char name[64], instance_name[64];
+
+    snprintf(name, sizeof(name), L2NET_WIFI_MEMBERS, instance);
+    *present = (ccsp->psm_get_value_fn(name, value, size) != NULL);
+    if (*present) {
+        return RETURN_OK;
+    }
+    snprintf(name, sizeof(name), L2NET_NAME, instance);
+    if (ccsp->psm_get_value_fn(name, instance_name, sizeof(instance_name)) == NULL) {
+        wifi_util_repurposed_error(WIFI_CTRL, "PSM does not answer for l2net %d\n", instance);
+        return RETURN_ERR;
+    }
+    value[0] = '\0';
+    return RETURN_OK;
+}
+
+/* While the target holds the role, the Wi-Fi members record of its hotspot l2net instance is
+ * absent: the bridge manager attaches then no Wi-Fi interface to the hotspot bridge. PSM restores
+ * the record from the defaults of the running image at every boot, so that any image, an older
+ * one after a firmware downgrade as well, finds the target in its hotspot bridge. Only a record
+ * that lists nothing but the target is deleted, other members could not be restored. */
+static int l2net_release_wifi_members(wifi_ccsp_desc_t *ccsp, int instance, const char *ifname)
+{
+    char name[64], value[256];
+    bool present, listed, others;
+
+    if (l2net_get_wifi_members(ccsp, instance, value, sizeof(value), &present) != RETURN_OK) {
+        return RETURN_ERR;
+    }
+    if (!present) {
+        return RETURN_OK;
+    }
+    l2net_members_check(value, ifname, &listed, &others);
+    snprintf(name, sizeof(name), L2NET_WIFI_MEMBERS, instance);
+    if (others) {
+        wifi_util_repurposed_error(WIFI_CTRL, "%s lists '%s', not only %s: not released\n", name,
+            value, ifname);
+        return RETURN_ERR;
+    }
+    wifi_util_repurposed_info(WIFI_CTRL, "%s '%s' deleted, PSM restores it at boot\n", name,
+        value);
+    if (ccsp->psm_del_value_fn(name) != RETURN_OK) {
+        wifi_util_repurposed_error(WIFI_CTRL, "failed to delete %s\n", name);
+        return RETURN_ERR;
+    }
+    return RETURN_OK;
+}
+
+/* Once the target is a hotspot again, the Wi-Fi members record of its hotspot l2net instance
+ * lists it, as the PSM defaults do. An absent or empty record is set (the role leaves it absent,
+ * an earlier version of the role left it empty). A record that lists other interfaces only is an
+ * operator setting and is left alone. changed tells whether the record was written. */
+static int l2net_restore_wifi_members(wifi_ccsp_desc_t *ccsp, int instance, const char *ifname,
+    bool *changed)
+{
+    char name[64], value[256];
+    bool present, listed, others;
+
+    *changed = false;
+    if (l2net_get_wifi_members(ccsp, instance, value, sizeof(value), &present) != RETURN_OK) {
+        return RETURN_ERR;
+    }
+    l2net_members_check(value, ifname, &listed, &others);
+    if (listed || others) {
+        return RETURN_OK;
+    }
+    snprintf(name, sizeof(name), L2NET_WIFI_MEMBERS, instance);
+    snprintf(value, sizeof(value), "%s", ifname);
+    wifi_util_repurposed_info(WIFI_CTRL, "%s restored to '%s'\n", name, value);
+    if (ccsp->psm_set_value_fn(name, value) != RETURN_OK) {
+        wifi_util_repurposed_error(WIFI_CTRL, "failed to set %s to '%s'\n", name, value);
+        return RETURN_ERR;
+    }
+    *changed = true;
+    return RETURN_OK;
+}
+
+/*
+ * The bridge manager attaches to each bridge the interfaces it expects there and detaches the
+ * other ones, on multinet-up and multinet-syncMembers (raised at boot, by the GRE tunnel for the
+ * hotspot bridges and by LAN changes for the private bridge). bridgeUtils reads the Wi-Fi
+ * interfaces of a bridge from PSM (dmsb.l2net.<n>.Members.OneWiFi), vlan_util_tchxb6.sh has them
+ * in the script. PSM is kept safe for every firmware image:
+ * - the target is never listed under the private bridge, where an image without the role would
+ *   attach the hotspot VAP. The HAL keeps the repurposed VAP in the private bridge itself, it
+ *   attaches it again when a sync of that bridge detaches it,
+ * - while repurposed, the Wi-Fi members record of the hotspot bridge is absent, so that a sync of
+ *   the hotspot bridge cannot take the target. PSM restores the record from the defaults of the
+ *   image at every boot. The role is applied only once the record is released,
+ * - once a hotspot again, the record is restored before the bridge manager syncs the hotspot
+ *   bridge, which it is asked to do when the record was restored.
+ * Platforms whose private bridge has no such record are left alone, so that no record the image
+ * defaults lack is ever written. repurposed is the role being applied.
+ */
+int sync_repurposed_vap_bridge_members(bool repurposed)
 {
     wifi_ccsp_desc_t *ccsp = &get_wificcsp_obj()->desc;
     int vap_index = getRepurposeTargetVapIndex(), private_instance, hotspot_instance, ret;
     const wifi_interface_name_idex_map_t *target, *private_2g;
-    bool repurposed;
+    char cmd[64], members[256];
+    bool changed = false, present;
 
-    if ((vap_index < 0) || (ccsp->psm_get_value_fn == NULL) || (ccsp->psm_set_value_fn == NULL)) {
+    if ((vap_index < 0) || (ccsp->psm_get_value_fn == NULL) || (ccsp->psm_set_value_fn == NULL) ||
+        (ccsp->psm_del_value_fn == NULL)) {
         return RETURN_OK;
     }
     target = repurposed_vap_if_prop(vap_index);
@@ -1865,23 +1977,36 @@ int sync_repurposed_vap_bridge_members(void)
             target->bridge_name, hotspot_instance, private_2g->bridge_name, private_instance);
         return RETURN_OK;
     }
+    if (l2net_get_wifi_members(ccsp, private_instance, members, sizeof(members), &present) !=
+        RETURN_OK) {
+        return RETURN_ERR;
+    }
+    if (!present) {
+        wifi_util_repurposed_info(WIFI_CTRL, "no Wi-Fi members record for l2net %d, left alone\n",
+            private_instance);
+        return RETURN_OK;
+    }
 
-    repurposed = isVapRepurposed(vap_index);
-    wifi_util_repurposed_info(WIFI_CTRL, "%s belongs to %s (l2net %d)\n", target->interface_name,
-        repurposed ? private_2g->bridge_name : target->bridge_name,
-        repurposed ? private_instance : hotspot_instance);
+    wifi_util_repurposed_info(WIFI_CTRL, "%s %s: private l2net %d, hotspot l2net %d\n",
+        target->interface_name, repurposed ? "repurposed" : "hotspot", private_instance,
+        hotspot_instance);
+    ret = l2net_set_wifi_member(ccsp, private_instance, target->interface_name, false);
     if (repurposed) {
-        ret = l2net_set_wifi_member(ccsp, private_instance, target->interface_name, true);
-        ret |= l2net_set_wifi_member(ccsp, hotspot_instance, target->interface_name, false);
+        ret |= l2net_release_wifi_members(ccsp, hotspot_instance, target->interface_name);
     } else {
-        ret = l2net_set_wifi_member(ccsp, hotspot_instance, target->interface_name, true);
-        ret |= l2net_set_wifi_member(ccsp, private_instance, target->interface_name, false);
+        ret |= l2net_restore_wifi_members(ccsp, hotspot_instance, target->interface_name, &changed);
+    }
+    if (changed) {
+        snprintf(cmd, sizeof(cmd), "sysevent set multinet-syncMembers %d", hotspot_instance);
+        wifi_util_repurposed_info(WIFI_CTRL, "%s\n", cmd);
+        get_stubs_descriptor()->v_secure_system_fn(cmd);
     }
     return (ret == RETURN_OK) ? RETURN_OK : RETURN_ERR;
 }
 
 /* Derive the repurposed VAP in the cache at boot. The private service creates it. The bridge
- * membership in PSM is made to match, also when the VAP stays a hotspot. */
+ * membership in PSM is made to match, also when the VAP stays a hotspot. PSM restored the
+ * hotspot membership at boot, it is released again before the VAP is created. */
 int init_repurposed_vap_config(void)
 {
     wifi_mgr_t *mgr = get_wifimgr_obj();
@@ -1891,14 +2016,21 @@ int init_repurposed_vap_config(void)
     if ((vap_index < 0) || (get_wifi_db_rfc_parameters()->repurposed_vap_enable == false)) {
         wifi_util_repurposed_info(WIFI_CTRL, "boot: target vap_index:%d rfc:%d, not repurposed\n",
             vap_index, get_wifi_db_rfc_parameters()->repurposed_vap_enable);
-        sync_repurposed_vap_bridge_members();
+        sync_repurposed_vap_bridge_members(false);
         return RETURN_OK;
     }
 
     if (derive_repurposed_vap_config(&mgr->hal_cap.wifi_prop, mgr->radio_config, &vap_info) !=
         webconfig_error_none) {
         wifi_util_repurposed_error(WIFI_CTRL, "vap_index:%d stays a hotspot\n", vap_index);
-        sync_repurposed_vap_bridge_members();
+        sync_repurposed_vap_bridge_members(false);
+        return RETURN_ERR;
+    }
+
+    if (sync_repurposed_vap_bridge_members(true) != RETURN_OK) {
+        wifi_util_repurposed_error(WIFI_CTRL, "vap_index:%d bridge membership not released, stays "
+            "a hotspot\n", vap_index);
+        sync_repurposed_vap_bridge_members(false);
         return RETURN_ERR;
     }
 
@@ -1906,7 +2038,6 @@ int init_repurposed_vap_config(void)
     memcpy(get_wifidb_vap_parameters(vap_index), &vap_info, sizeof(wifi_vap_info_t));
     pthread_mutex_unlock(&mgr->data_cache_lock);
     sync_repurposed_vap_acl(vap_index, false);
-    sync_repurposed_vap_bridge_members();
 
     wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d repurposed into the private network\n",
         vap_index);
@@ -1952,6 +2083,8 @@ static int webconfig_hal_repurposed_vap_restore(wifi_ctrl_t *ctrl, int vap_index
     } else {
         wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d hotspot restored\n", vap_index);
     }
+    // the hotspot membership comes back once the vap left the private bridge
+    sync_repurposed_vap_bridge_members(false);
     return ret;
 }
 
@@ -2006,6 +2139,19 @@ int webconfig_hal_repurposed_vap_apply(wifi_ctrl_t *ctrl, bool enable,
             vap_index);
         free(map);
         return RETURN_OK;
+    }
+
+    // no bridge manager may take the vap out of the private bridge once it holds the role
+    if (sync_repurposed_vap_bridge_members(true) != RETURN_OK) {
+        wifi_util_repurposed_error(WIFI_CTRL, "vap_index:%d bridge membership not released\n",
+            vap_index);
+        free(map);
+        if (repurposed) {
+            webconfig_hal_repurposed_vap_restore(ctrl, vap_index);
+        } else {
+            sync_repurposed_vap_bridge_members(false);
+        }
+        return RETURN_ERR;
     }
 
     ret = svc->update_fn(svc, map->vap_array[0].radio_index, map, &rdk_vap_info);
@@ -2064,10 +2210,13 @@ static int webconfig_hal_repurposed_vap_request_apply(wifi_ctrl_t *ctrl,
     }
 
     ret_applied = (vap_index >= 0) && isVapRepurposed(vap_index);
+    // while repurposed, a hotspot membership that came back is released again
+    if (ret_applied || (applied != ret_applied)) {
+        sync_repurposed_vap_bridge_members(ret_applied);
+    }
     if (applied != ret_applied) {
         wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d repurposed status %d -> %d\n",
             vap_index, applied, ret_applied);
-        sync_repurposed_vap_bridge_members();
         // the mac filter and dml views of the vap changed
         ctrl->webconfig_state |= (ctrl_webconfig_state_macfilter_cfg_rsp_pending |
             ctrl_webconfig_state_vap_all_cfg_rsp_pending);

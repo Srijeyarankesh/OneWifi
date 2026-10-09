@@ -58,6 +58,7 @@ typedef void (* wifi_ccsp_trace_debug_t) (char *format, ...);
 typedef char * (* psm_get_value_t) (char *recName, char *strValue, unsigned int str_size);
 typedef int (* psm_set_value_t) (char *recName, char *strValue);
 typedef int (* get_partner_id_t) (char *partner_id);
+typedef int (* psm_del_value_t) (char *recName);
 
 typedef struct {
     wifi_ccsp_init_t                  init_fn;
@@ -72,6 +73,7 @@ typedef struct {
     psm_get_value_t                   psm_get_value_fn;
     psm_set_value_t                   psm_set_value_fn;
     get_partner_id_t                  get_partner_id_fn;
+    psm_del_value_t                   psm_del_value_fn;
 } wifi_ccsp_desc_t;
 
 typedef struct {
@@ -104,6 +106,7 @@ typedef struct {
 char *psm_get_value_Rdkb(char *recName, char *strValue, unsigned int str_size);
 int psm_set_value_Rdkb(char *recName, char *strValue);
 int get_partner_id_Rdkb(char *partner_id);
+int psm_del_value_Rdkb(char *recName);
 
 #ifdef __cplusplus
 }
