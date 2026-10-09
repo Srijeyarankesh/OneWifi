@@ -382,6 +382,7 @@ bool isVapRepurposeTarget(unsigned int vap_index);
 bool isVapRepurposed(unsigned int vap_index);
 bool isVapPrivateNetwork(unsigned int vap_index);
 int init_repurposed_vap_config(void);
+int sync_repurposed_vap_bridge_members(void);
 int webconfig_hal_repurposed_vap_apply(wifi_ctrl_t *ctrl, bool enable,
     const wifi_vap_info_t *vap_config);
 int notify_repurposed_vap_enable(wifi_ctrl_t *ctrl, bool enable);
