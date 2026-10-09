@@ -2683,7 +2683,7 @@ void process_factory_reset_command(bool type)
     wifi_util_dbg_print(WIFI_DB,"WIFI Factory reset initiated default value %d\n",__LINE__);
     start_wifi_services();
     if (repurposed) {
-        sync_repurposed_vap_bridge_members();
+        sync_repurposed_vap_bridge_members(false);
         notify_repurposed_vap_status(&p_wifi_mgr->ctrl, false);
     }
     wifi_util_dbg_print(WIFI_DB,"WIFI Factory reset started wifidb monitor %d\n",__LINE__);

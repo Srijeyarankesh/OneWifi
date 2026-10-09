@@ -418,7 +418,7 @@ int vap_svc_start_stop(vap_svc_t *svc, unsigned int radio_index, bool enable)
             // fall back to the persisted hotspot configuration
             if (enable) {
                 wifidb_reload_wifi_vap_config(tgt_vap_map->vap_array[0].vap_name);
-                sync_repurposed_vap_bridge_members();
+                sync_repurposed_vap_bridge_members(false);
             }
             continue;
         }

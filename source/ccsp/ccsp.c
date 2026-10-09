@@ -93,6 +93,11 @@ int get_partner_id_Rdkb(char *partner_id)
 {
     return get_partner_id(partner_id);
 }
+
+int psm_del_value_Rdkb(char *recName)
+{
+    return -1;
+}
 #endif
 
 void wifi_ccsp_rdkb_init(wifi_ccsp_t *ccsp)
@@ -109,4 +114,5 @@ void wifi_ccsp_rdkb_init(wifi_ccsp_t *ccsp)
     ccsp->desc.psm_get_value_fn = psm_get_value_Rdkb;
     ccsp->desc.psm_set_value_fn = psm_set_value_Rdkb;
     ccsp->desc.get_partner_id_fn = get_partner_id_Rdkb;
+    ccsp->desc.psm_del_value_fn = psm_del_value_Rdkb;
 }

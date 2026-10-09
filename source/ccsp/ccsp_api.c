@@ -187,3 +187,20 @@ int get_partner_id_Rdkb(char *partner_id)
 {
     return ((getPartnerId(partner_id) == RDKB_CCSP_SUCCESS) ? RETURN_OK : RETURN_ERR);
 }
+
+/* Deleting a record that does not exist succeeds as well. */
+int psm_del_value_Rdkb(char *recName)
+{
+    int retPsmDel;
+
+    wifi_util_dbg_print(WIFI_MGR, "%s:%d record_name:%s\n", __func__, __LINE__, recName);
+
+    retPsmDel = PSM_Del_Record(bus_handle, g_Subsystem, recName);
+    if (retPsmDel != RDKB_CCSP_SUCCESS) {
+        wifi_util_dbg_print(WIFI_MGR, "%s:%d PSM_Del_Record returned error %d for %s\n", __func__,
+            __LINE__, retPsmDel, recName);
+        return RETURN_ERR;
+    }
+
+    return RETURN_OK;
+}
