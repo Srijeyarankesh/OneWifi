@@ -57,9 +57,13 @@ static bool is_personal_security_mode(wifi_security_modes_t mode)
         (mode == wifi_security_mode_wpa3_transition) || (mode == wifi_security_mode_wpa3_compatibility);
 }
 
-/* The repurposed VAP mimics the private 2.4 GHz VAP. Only the security mode is set to
- * WPA3-Personal-Compatibility and, when the private 2.4 GHz VAP is open, the passphrase is
- * taken from the private 5 GHz, else 6 GHz, VAP. WPS, steering and MLO are not supported. */
+/* The repurposed VAP has every setting of the private 2.4 GHz VAP (its whole BSS configuration,
+ * bridge and, see sync_repurposed_vap_acl(), MAC filter), with these exceptions only:
+ * - its identity stays the one of the target VAP (index, name, radio, BSSID),
+ * - the security mode is WPA3-Personal-Compatibility with the WPA3 mode encryption and, when the
+ *   private 2.4 GHz VAP is open, the passphrase of the private 5 GHz, else 6 GHz, VAP,
+ * - MLO and steering (BSS transition) are off, and so is WPS.
+ * Where OneWifi tells VAP types apart at runtime, isVapPrivateNetwork() includes it. */
 webconfig_error_t derive_repurposed_vap_config(wifi_platform_property_t *wifi_prop,
     rdk_wifi_radio_t *radios, wifi_vap_info_t *vap_info)
 {
