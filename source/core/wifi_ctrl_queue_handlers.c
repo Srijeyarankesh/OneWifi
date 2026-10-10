@@ -2609,7 +2609,8 @@ static void process_wps_results_event(wifi_wps_event_t *wps_event)
     wifi_util_info_print(WIFI_CTRL, "%s:%d wps event[%d] is received\n", __func__, __LINE__,
         wps_event->event);
 
-    // wps is disabled on the repurposed vap, whose configuration is never persisted
+    // the results of the repurposed vap are not stored: its configuration is never persisted and
+    // its wps sessions are the ones of the private vaps
     if (isVapRepurposed(vap_index)) {
         wifi_util_repurposed_info(WIFI_CTRL, "wps event %d ignored on vap_index:%d\n",
             wps_event->event, vap_index);
@@ -3212,8 +3213,10 @@ void process_xfi_tel_enable_rfc(bool type)
 void process_wps_command_event(unsigned int vap_index)
 {
 #ifdef FEATURE_SUPPORT_WPS
+    // hostapd runs the wps of the repurposed vap in the sessions of the private vaps only
     if (isVapRepurposed(vap_index)) {
-        wifi_util_repurposed_info(WIFI_CTRL, "wps is disabled on vap_index:%d\n", vap_index);
+        wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d wps runs with the private vaps only, "
+            "request ignored\n", vap_index);
         return;
     }
     wifi_util_info_print(WIFI_CTRL,"%s:%d wifi wps test vap index = %d\n",__func__, __LINE__, vap_index);
@@ -3233,8 +3236,8 @@ void process_wps_pin_command_event(void *data)
     wifi_util_info_print(WIFI_CTRL,"%s:%d wifi wps pin vap index = %d, wps_pin:%s\n",__func__, __LINE__,
                                         wps_config->vap_index, wps_config->wps_pin);
     if (isVapRepurposed(wps_config->vap_index)) {
-        wifi_util_repurposed_info(WIFI_CTRL, "wps is disabled on vap_index:%d\n",
-            wps_config->vap_index);
+        wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d wps runs with the private vaps only, "
+            "request ignored\n", wps_config->vap_index);
         return;
     }
     wifi_hal_setApWpsPin(wps_config->vap_index, wps_config->wps_pin);
@@ -3251,6 +3254,12 @@ static void process_wps_cancel_event(void *data)
 
     INT vap_index = *(INT*)data;
 
+    // a cancel would end the session of every private vap in hostapd
+    if (isVapRepurposed(vap_index)) {
+        wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d wps runs with the private vaps only, "
+            "request ignored\n", vap_index);
+        return;
+    }
     wifi_util_info_print(WIFI_CTRL,"%s:%d wps pbc cancel vap index = %d\n",
         __func__, __LINE__, vap_index);
     wifi_hal_setApWpsCancel(vap_index);

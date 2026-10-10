@@ -2186,6 +2186,15 @@ webconfig_error_t encode_repurposed_vap_object(webconfig_repurposed_vap_t config
             wifi_util_repurposed_error(WIFI_WEBCONFIG, "Failed to encode %s\n", vap_info->vap_name);
             return webconfig_error_encode;
         }
+#ifdef FEATURE_SUPPORT_WPS
+        // the wps methods and pin of the private 2.4 GHz vap, the vap object carries them only
+        // for private vap names
+        if (cJSON_GetObjectItem(vap_obj, "WpsConfigMethodsEnabled") == NULL) {
+            cJSON_AddNumberToObject(vap_obj, "WpsConfigMethodsEnabled",
+                vap_info->u.bss_info.wps.methods);
+            cJSON_AddStringToObject(vap_obj, "WpsConfigPin", vap_info->u.bss_info.wps.pin);
+        }
+#endif /* FEATURE_SUPPORT_WPS */
     }
 
     return webconfig_error_none;
