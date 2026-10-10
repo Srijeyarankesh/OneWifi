@@ -62,7 +62,9 @@ static bool is_personal_security_mode(wifi_security_modes_t mode)
  * - its identity stays the one of the target VAP (index, name, radio, BSSID),
  * - the security mode is WPA3-Personal-Compatibility with the WPA3 mode encryption and, when the
  *   private 2.4 GHz VAP is open, the passphrase of the private 5 GHz, else 6 GHz, VAP,
- * - MLO and steering (BSS transition) are off, and so is WPS.
+ * - MLO and steering (BSS transition) are off,
+ * - WPS is the one of the private 2.4 GHz VAP, run by hostapd in the sessions of the private VAPs;
+ *   it is off when the passphrase comes from another VAP, and without FEATURE_SUPPORT_WPS.
  * Where OneWifi tells VAP types apart at runtime, isVapPrivateNetwork() includes it. */
 webconfig_error_t derive_repurposed_vap_config(wifi_platform_property_t *wifi_prop,
     rdk_wifi_radio_t *radios, wifi_vap_info_t *vap_info)
@@ -146,7 +148,15 @@ webconfig_error_t derive_repurposed_vap_config(wifi_platform_property_t *wifi_pr
     security->mfp = wifi_mfp_cfg_disabled;
     security->wpa3_transition_disable = false;
 
+#ifdef FEATURE_SUPPORT_WPS
+    // the wps of the private 2.4 GHz vap, which hostapd runs as one wps device with the private
+    // vaps; off when the passphrase is not the one of the private 2.4 GHz vap
+    if (key_source != source) {
+        memset(&vap_info->u.bss_info.wps, 0, sizeof(vap_info->u.bss_info.wps));
+    }
+#else
     memset(&vap_info->u.bss_info.wps, 0, sizeof(vap_info->u.bss_info.wps));
+#endif /* FEATURE_SUPPORT_WPS */
     vap_info->u.bss_info.wpsPushButton = 0;
     vap_info->u.bss_info.bssTransitionActivated = false;
     memset(&vap_info->u.bss_info.mld_info, 0, sizeof(vap_info->u.bss_info.mld_info));
@@ -154,11 +164,13 @@ webconfig_error_t derive_repurposed_vap_config(wifi_platform_property_t *wifi_pr
     vap_info->u.bss_info.mld_info.common_info.mld_link_id = 255;
 
     wifi_util_repurposed_info(WIFI_WEBCONFIG, "vap_index:%d %s derived from %s: enabled:%d "
-        "bridge:%s ssid:%s security mode:%d encr:%d passphrase of %s mac filter:%d/%d\n",
+        "bridge:%s ssid:%s security mode:%d encr:%d passphrase of %s mac filter:%d/%d "
+        "wps:%d methods:0x%x\n",
         vap_info->vap_index, vap_info->vap_name, source->vap_name, vap_info->u.bss_info.enabled,
         vap_info->bridge_name, vap_info->u.bss_info.ssid, security->mode, security->encr,
         key_source->vap_name, vap_info->u.bss_info.mac_filter_enable,
-        vap_info->u.bss_info.mac_filter_mode);
+        vap_info->u.bss_info.mac_filter_mode, vap_info->u.bss_info.wps.enable,
+        (unsigned int)vap_info->u.bss_info.wps.methods);
     return webconfig_error_none;
 }
 
@@ -458,6 +470,18 @@ webconfig_error_t decode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
             cJSON_Delete(json);
             return webconfig_error_decode;
         }
+#ifdef FEATURE_SUPPORT_WPS
+        // the wps methods and pin of the private 2.4 GHz vap (encode_repurposed_vap_object())
+        obj = cJSON_GetObjectItem(obj_vap, "WpsConfigMethodsEnabled");
+        if (cJSON_IsNumber(obj)) {
+            vap_info->u.bss_info.wps.methods = obj->valuedouble;
+        }
+        obj = cJSON_GetObjectItem(obj_vap, "WpsConfigPin");
+        if (cJSON_IsString(obj)) {
+            snprintf(vap_info->u.bss_info.wps.pin, sizeof(vap_info->u.bss_info.wps.pin), "%s",
+                obj->valuestring);
+        }
+#endif /* FEATURE_SUPPORT_WPS */
         wifi_util_repurposed_info(WIFI_WEBCONFIG, "vap_index:%d %s decoded: enabled:%d bridge:%s "
             "security mode:%d\n", vap_info->vap_index, vap_info->vap_name,
             vap_info->u.bss_info.enabled, vap_info->bridge_name,
