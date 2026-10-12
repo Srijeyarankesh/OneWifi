@@ -2685,8 +2685,9 @@ void process_factory_reset_command(bool type)
     start_wifi_services();
     if (repurposed) {
         sync_repurposed_vap_bridge_members(false);
-        notify_repurposed_vap_status(&p_wifi_mgr->ctrl, false);
     }
+    // the feature is disabled by default
+    publish_repurposed_vap_status(&p_wifi_mgr->ctrl);
     wifi_util_dbg_print(WIFI_DB,"WIFI Factory reset started wifidb monitor %d\n",__LINE__);
     get_wifidb_obj()->desc.start_monitor_fn();
     p_wifi_mgr->ctrl.webconfig_state |= ctrl_webconfig_state_factoryreset_cfg_rsp_pending;

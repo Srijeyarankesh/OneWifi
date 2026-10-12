@@ -878,7 +878,7 @@ int notify_repurposed_vap_enable(wifi_ctrl_t *ctrl, bool enable)
     return RETURN_OK;
 }
 
-/* Event of the applied repurposed vap state */
+/* Event of the repurposed vap feature state, see publish_repurposed_vap_status() */
 int notify_repurposed_vap_status(wifi_ctrl_t *ctrl, bool enabled)
 {
     bus_error_t rc;
@@ -4731,7 +4731,9 @@ bus_error_t get_repurposed_vap_param(char *name, raw_data_t *p_data, bus_user_da
     if (strcmp(name, WIFI_REPURPOSED_VAP_ENABLE) == 0) {
         p_data->raw_data.b = get_wifi_db_rfc_parameters()->repurposed_vap_enable;
     } else if (strcmp(name, WIFI_REPURPOSED_VAP_STATUS) == 0) {
-        p_data->raw_data.b = (vap_index >= 0) && isVapRepurposed(vap_index);
+        // the feature state as announced, once its change is applied
+        p_data->raw_data.b = (vap_index >= 0) &&
+            ((wifi_ctrl_t *)get_wifictrl_obj())->repurposed_vap_status;
     } else {
         wifi_util_repurposed_error(WIFI_CTRL, "Invalid name : %s\r\n", name);
         return bus_error_invalid_input;

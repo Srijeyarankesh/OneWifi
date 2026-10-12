@@ -2013,6 +2013,9 @@ int init_repurposed_vap_config(void)
     int vap_index = getRepurposeTargetVapIndex();
     wifi_vap_info_t vap_info;
 
+    // the feature state at boot is announced by the Status getter, its changes by the event
+    mgr->ctrl.repurposed_vap_status = get_wifi_db_rfc_parameters()->repurposed_vap_enable;
+
     if ((vap_index < 0) || (get_wifi_db_rfc_parameters()->repurposed_vap_enable == false)) {
         wifi_util_repurposed_info(WIFI_CTRL, "boot: target vap_index:%d rfc:%d, not repurposed\n",
             vap_index, get_wifi_db_rfc_parameters()->repurposed_vap_enable);
@@ -2220,9 +2223,29 @@ static int webconfig_hal_repurposed_vap_request_apply(wifi_ctrl_t *ctrl,
         // the mac filter and dml views of the vap changed
         ctrl->webconfig_state |= (ctrl_webconfig_state_macfilter_cfg_rsp_pending |
             ctrl_webconfig_state_vap_all_cfg_rsp_pending);
-        notify_repurposed_vap_status(ctrl, ret_applied);
     }
+    // also a feature reset elsewhere (WiFi factory reset of the DML) is announced from here
+    publish_repurposed_vap_status(ctrl);
     return ret;
+}
+
+/* Device.WiFi.RepurposedVap.Status announces the feature state (the RFC): published once a
+ * change of it is applied, whatever changed it, so that other components can act on it. A
+ * failed publication is retried on the next call. */
+int publish_repurposed_vap_status(wifi_ctrl_t *ctrl)
+{
+    bool enabled = get_wifi_db_rfc_parameters()->repurposed_vap_enable;
+
+    if ((getRepurposeTargetVapIndex() < 0) || (enabled == ctrl->repurposed_vap_status)) {
+        return RETURN_OK;
+    }
+    wifi_util_repurposed_info(WIFI_CTRL, "feature %d -> %d\n", ctrl->repurposed_vap_status,
+        enabled);
+    if (notify_repurposed_vap_status(ctrl, enabled) != RETURN_OK) {
+        return RETURN_ERR;
+    }
+    ctrl->repurposed_vap_status = enabled;
+    return RETURN_OK;
 }
 
 /* Move the WPA2-Personal private VAPs, but 6 GHz, to WPA3-Personal-Transition. */
