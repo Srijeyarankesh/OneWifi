@@ -296,6 +296,7 @@ typedef struct wifi_ctrl {
     bool                hotspot_client_dhcp_failure_subscribed;
     bool                multiap_sta_enabled;
     int                 multiap_timer_id;
+    bool                repurposed_vap_status; /* Device.WiFi.RepurposedVap.Status announced */
 } wifi_ctrl_t;
 
 
@@ -387,6 +388,7 @@ int webconfig_hal_repurposed_vap_apply(wifi_ctrl_t *ctrl, bool enable,
     const wifi_vap_info_t *vap_config);
 int notify_repurposed_vap_enable(wifi_ctrl_t *ctrl, bool enable);
 int notify_repurposed_vap_status(wifi_ctrl_t *ctrl, bool enabled);
+int publish_repurposed_vap_status(wifi_ctrl_t *ctrl);
 BOOL isVapXhs(UINT apIndex);
 BOOL isVapHotspot(UINT apIndex);
 BOOL isVapHotspotOpen(UINT apIndex);

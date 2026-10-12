@@ -89,6 +89,39 @@ webconfig_error_t translate_to_dml_subdoc(webconfig_t *config, webconfig_subdoc_
     return webconfig_error_none;
 }
 
+/* The repurposed private 2.4 GHz VAP is in the private bridge only at runtime, its interface map
+ * entry keeps the hotspot bridge. It is published with the bridge its configuration is in, so
+ * that the consumers of the interface map (the CUJO agent) see a private network VAP while it
+ * holds the role. The interface map of OneWifi itself is not changed. */
+static void get_published_interface_map(const webconfig_subdoc_decoded_data_t *params,
+    unsigned int i, wifi_interface_name_idex_map_t *published_map)
+{
+    const wifi_vap_info_map_t *map;
+    unsigned int r, j;
+
+    *published_map = params->hal_cap.wifi_prop.interface_map[i];
+    if (published_map->vap_name[0] == '\0') {
+        return;
+    }
+    for (r = 0; r < params->num_radios; r++) {
+        map = &params->radios[r].vaps.vap_map;
+        for (j = 0; (j < map->num_vaps) && (j < MAX_NUM_VAP_PER_RADIO); j++) {
+            if ((map->vap_array[j].vap_index != published_map->index) ||
+                (strcmp(map->vap_array[j].repurposed_vap_name,
+                     WIFI_REPURPOSED_PRIVATE_2G_NAME) != 0) ||
+                (map->vap_array[j].bridge_name[0] == '\0')) {
+                continue;
+            }
+            wifi_util_repurposed_dbg(WIFI_WEBCONFIG, "%s published in bridge %s, not %s\n",
+                published_map->vap_name, map->vap_array[j].bridge_name,
+                published_map->bridge_name);
+            snprintf(published_map->bridge_name, sizeof(published_map->bridge_name), "%s",
+                map->vap_array[j].bridge_name);
+            return;
+        }
+    }
+}
+
 webconfig_error_t encode_dml_subdoc(webconfig_t *config, webconfig_subdoc_data_t *data)
 {
     cJSON *json;
@@ -170,7 +203,10 @@ webconfig_error_t encode_dml_subdoc(webconfig_t *config, webconfig_subdoc_data_t
     array_size = sizeof(params->hal_cap.wifi_prop.interface_map)/sizeof(wifi_interface_name_idex_map_t);
 
     for(i = 0; i < array_size; i++) {
-        interface_map = &params->hal_cap.wifi_prop.interface_map[i];
+        wifi_interface_name_idex_map_t published_map;
+
+        get_published_interface_map(params, i, &published_map);
+        interface_map = &published_map;
         if (encode_wifivapcap(interface_map, obj_array) != webconfig_error_none) {
             wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: Failed to encode halcap object\n", __func__, __LINE__);
             cJSON_Delete(json);
