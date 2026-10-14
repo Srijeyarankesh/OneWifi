@@ -666,6 +666,11 @@ typedef struct {
 
 #define WIFI_REPURPOSED_VAP_ENABLE "Device.WiFi.RepurposedVap.Enable"
 #define WIFI_REPURPOSED_VAP_STATUS "Device.WiFi.RepurposedVap.Status"
+/* For tests only: when this file exists, its first line is the SSID of the repurposed VAP instead
+ * of the private 2.4 GHz one (derive_repurposed_vap_config()). */
+#ifndef WIFI_REPURPOSED_VAP_TEST_SSID_FILE
+#define WIFI_REPURPOSED_VAP_TEST_SSID_FILE "/tmp/wifiRepurposedVapTestSsid"
+#endif
 
 typedef struct {
     bool notify_wifi_changes;

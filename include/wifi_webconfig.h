@@ -365,6 +365,7 @@ webconfig_error_t decode_interworking_object(const cJSON *interworking, wifi_int
 webconfig_error_t decode_cac_object(wifi_vap_info_t *vap_info, cJSON *obj_array);
 webconfig_error_t decode_ipv4_address(char *ip);
 webconfig_error_t decode_ipv6_address(char *ip);
+webconfig_error_t decode_ssid_name(char *ssid_name, wifi_vap_mode_t vap_mode);
 
 // internal to webconfig
 webconfig_error_t webconfig_set(webconfig_t *config, webconfig_subdoc_data_t *data);
