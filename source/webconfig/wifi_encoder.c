@@ -2153,7 +2153,7 @@ webconfig_error_t encode_mac_object(rdk_wifi_vap_info_t *rdk_vap_info, cJSON *ob
 webconfig_error_t encode_repurposed_vap_object(webconfig_repurposed_vap_t config,
     const wifi_vap_info_t *vap_info, const rdk_wifi_vap_info_t *rdk_vap_info, cJSON *json)
 {
-    cJSON *obj_array, *obj, *vap_obj;
+    cJSON *obj, *vap_obj;
 
     if (json == NULL) {
         wifi_util_repurposed_error(WIFI_WEBCONFIG, "NULL pointer\n");
@@ -2165,13 +2165,10 @@ webconfig_error_t encode_repurposed_vap_object(webconfig_repurposed_vap_t config
         return webconfig_error_none;
     }
 
-    obj_array = cJSON_CreateArray();
-    cJSON_AddItemToObject(json, "RepurposedVapConfig", obj_array);
-
     obj = cJSON_CreateObject();
-    cJSON_AddItemToArray(obj_array, obj);
+    cJSON_AddItemToObject(json, WIFI_REPURPOSED_VAP_OBJECT, obj);
     cJSON_AddBoolToObject(obj, "Enabled", config == webconfig_repurposed_vap_enable);
-    wifi_util_repurposed_info(WIFI_WEBCONFIG, "RepurposedVapConfig Enabled:%d\n",
+    wifi_util_repurposed_info(WIFI_WEBCONFIG, "%s Enabled:%d\n", WIFI_REPURPOSED_VAP_OBJECT,
         config == webconfig_repurposed_vap_enable);
 
     // an enable request carries the repurposed vap configuration

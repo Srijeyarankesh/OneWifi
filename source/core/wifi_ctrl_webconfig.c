@@ -2309,7 +2309,10 @@ int webconfig_hal_private_vap_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_
     repurposed_vap_enabling = (data->repurposed_vap == webconfig_repurposed_vap_enable) &&
         (get_wifi_db_rfc_parameters()->repurposed_vap_enable == false);
     if (webconfig_hal_repurposed_vap_request_apply(ctrl, data) != RETURN_OK) {
-        return RETURN_ERR;
+        // a failed enable request leaves the target the hotspot vap and the private vaps are
+        // applied: queueing the subdoc again would only repeat the failed enable, it is retried
+        // with the next request
+        return (data->repurposed_vap == webconfig_repurposed_vap_enable) ? RETURN_OK : RETURN_ERR;
     }
 
     // once enabled, the WPA2 only clients are served by the repurposed vap

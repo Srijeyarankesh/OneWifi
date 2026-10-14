@@ -492,8 +492,8 @@ webconfig_error_t decode_private_subdoc(webconfig_t *config, webconfig_subdoc_da
         return webconfig_error_decode;
     }
     if (params->repurposed_vap == webconfig_repurposed_vap_enable) {
-        obj_vap = cJSON_GetObjectItem(cJSON_GetArrayItem(cJSON_GetObjectItem(json,
-            "RepurposedVapConfig"), 0), "VapConfig");
+        obj_vap = cJSON_GetObjectItem(cJSON_GetObjectItem(json, WIFI_REPURPOSED_VAP_OBJECT),
+            "VapConfig");
         name = cJSON_GetStringValue(cJSON_GetObjectItem(obj_vap, "VapName"));
         if ((name == NULL) || (strcmp(name, REPURPOSED_VAP_NAME) != 0)) {
             wifi_util_repurposed_error(WIFI_WEBCONFIG, "repurposed vap object not present\n");
