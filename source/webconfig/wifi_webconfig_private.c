@@ -22,6 +22,8 @@
 #include <stdarg.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include "collection.h"
 #include "wifi_webconfig.h"
 #include "wifi_util.h"
@@ -57,6 +59,49 @@ static bool is_personal_security_mode(wifi_security_modes_t mode)
         (mode == wifi_security_mode_wpa3_transition) || (mode == wifi_security_mode_wpa3_compatibility);
 }
 
+/* For tests only: the SSID of the repurposed VAP is the first line of
+ * WIFI_REPURPOSED_VAP_TEST_SSID_FILE when that file exists, so that a test client can tell it from
+ * the private 2.4 GHz VAP. The file is in /tmp: a reboot ends the test. It applies on the next
+ * derivation, Device.WiFi.RepurposedVap.Enable set to true again or a change of the private VAPs.
+ * A line that is not a valid SSID is ignored. */
+static void apply_repurposed_vap_test_ssid(wifi_vap_info_t *vap_info)
+{
+    // room for a line one character too long to be stored, which is then rejected, not truncated
+    char ssid[sizeof(vap_info->u.bss_info.ssid) + 2] = { 0 };
+    struct stat st;
+    FILE *fp = NULL;
+    int fd;
+
+    // anyone can write in /tmp: no symbolic link is followed, a FIFO does not block, and only a
+    // regular file of this user that only it can write is read
+    fd = open(WIFI_REPURPOSED_VAP_TEST_SSID_FILE, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+    if (fd < 0) {
+        return;
+    }
+    if ((fstat(fd, &st) != 0) || !S_ISREG(st.st_mode) || (st.st_uid != geteuid()) ||
+        (st.st_nlink != 1) || ((st.st_mode & (S_IWGRP | S_IWOTH)) != 0) ||
+        ((fp = fdopen(fd, "r")) == NULL)) {
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "test ssid of %s ignored, not a regular file "
+            "that only its owner, this user, can write\n", WIFI_REPURPOSED_VAP_TEST_SSID_FILE);
+        close(fd);
+        return;
+    }
+    if (fgets(ssid, sizeof(ssid), fp) == NULL) {
+        ssid[0] = '\0';
+    }
+    fclose(fp);
+    ssid[strcspn(ssid, "\r\n")] = '\0';
+    if ((strlen(ssid) >= sizeof(vap_info->u.bss_info.ssid)) ||
+        (decode_ssid_name(ssid, wifi_vap_mode_ap) != webconfig_error_none)) {
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "test ssid of %s ignored, not a valid ssid\n",
+            WIFI_REPURPOSED_VAP_TEST_SSID_FILE);
+        return;
+    }
+    wifi_util_repurposed_info(WIFI_WEBCONFIG, "test ssid:%s of %s instead of ssid:%s\n", ssid,
+        WIFI_REPURPOSED_VAP_TEST_SSID_FILE, vap_info->u.bss_info.ssid);
+    snprintf(vap_info->u.bss_info.ssid, sizeof(vap_info->u.bss_info.ssid), "%s", ssid);
+}
+
 /* The repurposed VAP has every setting of the private 2.4 GHz VAP (its whole BSS configuration,
  * bridge and, see sync_repurposed_vap_acl(), MAC filter), with these exceptions only:
  * - its identity stays the one of the target VAP (index, name, radio, BSSID),
@@ -64,7 +109,8 @@ static bool is_personal_security_mode(wifi_security_modes_t mode)
  *   private 2.4 GHz VAP is open, the passphrase of the private 5 GHz, else 6 GHz, VAP,
  * - MLO and steering (BSS transition) are off,
  * - WPS is the one of the private 2.4 GHz VAP, run by hostapd in the sessions of the private VAPs;
- *   it is off when the passphrase comes from another VAP, and without FEATURE_SUPPORT_WPS.
+ *   it is off when the passphrase comes from another VAP, and without FEATURE_SUPPORT_WPS,
+ * - for tests only, the SSID of the test file (apply_repurposed_vap_test_ssid()).
  * Where OneWifi tells VAP types apart at runtime, isVapPrivateNetwork() includes it. */
 webconfig_error_t derive_repurposed_vap_config(wifi_platform_property_t *wifi_prop,
     rdk_wifi_radio_t *radios, wifi_vap_info_t *vap_info)
@@ -129,6 +175,7 @@ webconfig_error_t derive_repurposed_vap_config(wifi_platform_property_t *wifi_pr
     snprintf(vap_info->repurposed_vap_name, sizeof(vap_info->repurposed_vap_name), "%s",
         WIFI_REPURPOSED_PRIVATE_2G_NAME);
     memset(vap_info->repurposed_bridge_name, 0, sizeof(vap_info->repurposed_bridge_name));
+    apply_repurposed_vap_test_ssid(vap_info);
 
     security = &vap_info->u.bss_info.security;
     if (source->u.bss_info.security.mode == wifi_security_mode_none) {
