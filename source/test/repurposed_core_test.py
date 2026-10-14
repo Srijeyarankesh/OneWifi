@@ -176,8 +176,8 @@ static void reset_fixture(void) {
 static void prepare(webconfig_subdoc_data_t *data) {
     webconfig_init_subdoc_data(data);
     data->u.encoded.raw=json_present ?
-        (json_enable ? "{\"RepurposedVapConfig\":[{\"Enabled\":true}]}" :
-                       "{\"RepurposedVapConfig\":[{\"Enabled\":false}]}") : "{}";
+        (json_enable ? "{\"Repurposed2GVap\":{\"Enabled\":true}}" :
+                       "{\"Repurposed2GVap\":{\"Enabled\":false}}") : "{}";
 }
 static void assert_dormant(void) {
     wifi_vap_info_t *vap=get_wifidb_vap_parameters(17);

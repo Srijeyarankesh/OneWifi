@@ -210,6 +210,10 @@ typedef struct {
     void *stats;
 } collect_subscribed_stats_t;
 
+/* The repurposed private 2.4 GHz VAP object of the private subdoc and of the cloud private blob:
+ * "Repurposed2GVap": { "Enabled": <boolean> } */
+#define WIFI_REPURPOSED_VAP_OBJECT "Repurposed2GVap"
+
 /* Repurposed private 2.4 GHz VAP request carried by the private subdoc.
  * Unchanged (the zero value) keeps the current setting. */
 typedef enum {

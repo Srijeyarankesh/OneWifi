@@ -1440,6 +1440,31 @@ static int push_blob_data(webconfig_subdoc_data_t *data, webconfig_subdoc_type_t
     return RETURN_OK;
 }
 
+/* An enable request of the Repurposed2GVap object that this device cannot apply (no secure
+ * 2.4 GHz hotspot vap to repurpose, no private passphrase) is ignored: the private subdoc encoding
+ * derives the repurposed vap and would otherwise fail the private vap configuration of the blob. */
+static void ignore_inapplicable_repurposed_vap_enable(webconfig_subdoc_decoded_data_t *decoded)
+{
+    wifi_vap_info_t *vap_info;
+
+    if (decoded->repurposed_vap != webconfig_repurposed_vap_enable) {
+        return;
+    }
+    vap_info = (wifi_vap_info_t *)malloc(sizeof(wifi_vap_info_t));
+    if (vap_info == NULL) {
+        wifi_util_repurposed_error(WIFI_CTRL, "malloc failed, %s enable not checked\n",
+            WIFI_REPURPOSED_VAP_OBJECT);
+        return;
+    }
+    if (derive_repurposed_vap_config(&decoded->hal_cap.wifi_prop, decoded->radios, vap_info) !=
+        webconfig_error_none) {
+        wifi_util_repurposed_error(WIFI_CTRL, "%s enable not applicable on this device, ignored\n",
+            WIFI_REPURPOSED_VAP_OBJECT);
+        decoded->repurposed_vap = webconfig_repurposed_vap_unchanged;
+    }
+    free(vap_info);
+}
+
 static pErr private_home_exec_common_handler(void *blob, const char *vap_prefix, webconfig_subdoc_type_t subdoc_type)
 {
     pErr execRetVal = NULL;
@@ -1472,19 +1497,21 @@ static pErr private_home_exec_common_handler(void *blob, const char *vap_prefix,
         goto done;
     }
 
+    // the Repurposed2GVap object of the private blob, absent the current setting is kept
     if (subdoc_type == webconfig_subdoc_type_private) {
         root = cJSON_Parse((char *)blob);
         if ((root == NULL) ||
             (decode_repurposed_vap_object(root, &data->u.decoded.repurposed_vap) !=
                 webconfig_error_none)) {
-            wifi_util_repurposed_error(WIFI_CTRL, "repurposed vap config parse failure\n");
+            wifi_util_repurposed_error(WIFI_CTRL, "%s parse failure\n", WIFI_REPURPOSED_VAP_OBJECT);
             execRetVal->ErrorCode = VALIDATION_FALIED;
-            strncpy(execRetVal->ErrorMsg, "Invalid RepurposedVapConfig",
+            strncpy(execRetVal->ErrorMsg, "Invalid " WIFI_REPURPOSED_VAP_OBJECT,
                 sizeof(execRetVal->ErrorMsg) - 1);
             goto done;
         }
         wifi_util_repurposed_info(WIFI_CTRL, "cloud private blob, repurposed vap request:%d\n",
             data->u.decoded.repurposed_vap);
+        ignore_inapplicable_repurposed_vap_enable(&data->u.decoded);
     }
 
     if (push_blob_data(data, subdoc_type) != RETURN_OK) {

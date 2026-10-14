@@ -4163,32 +4163,43 @@ webconfig_error_t decode_mac_object(rdk_wifi_vap_info_t *rdk_vap_info, cJSON *ob
     return webconfig_error_none;
 }
 
+/* "Repurposed2GVap": { "Enabled": <boolean> } of the private subdoc and of the cloud private
+ * blob. The object and its Enabled are optional, absent they keep the current setting. Enabled is
+ * a boolean, as the Enable of the private VAPs. */
 webconfig_error_t decode_repurposed_vap_object(const cJSON *json, webconfig_repurposed_vap_t *config)
 {
-    const cJSON *obj_array, *obj, *param;
+    const cJSON *obj, *param;
 
     if ((json == NULL) || (config == NULL)) {
         wifi_util_repurposed_error(WIFI_WEBCONFIG, "NULL pointer\n");
         return webconfig_error_decode;
     }
 
-    // optional object, absence keeps the current setting
     *config = webconfig_repurposed_vap_unchanged;
-    obj_array = cJSON_GetObjectItem(json, "RepurposedVapConfig");
-    if (obj_array == NULL) {
+    obj = cJSON_GetObjectItem(json, WIFI_REPURPOSED_VAP_OBJECT);
+    if (obj == NULL) {
         return webconfig_error_none;
     }
-
-    if ((cJSON_IsArray(obj_array) == false) || (cJSON_GetArraySize(obj_array) != 1)) {
-        wifi_util_repurposed_error(WIFI_WEBCONFIG, "Validation failed for RepurposedVapConfig\n");
+    if (cJSON_IsObject(obj) == false) {
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "%s validation failed, not an object\n",
+            WIFI_REPURPOSED_VAP_OBJECT);
         return webconfig_error_decode;
     }
 
-    obj = cJSON_GetArrayItem(obj_array, 0);
-    decode_param_bool(obj, "Enabled", param);
+    param = cJSON_GetObjectItem(obj, "Enabled");
+    if (param == NULL) {
+        wifi_util_repurposed_info(WIFI_WEBCONFIG, "%s without Enabled, current setting kept\n",
+            WIFI_REPURPOSED_VAP_OBJECT);
+        return webconfig_error_none;
+    }
+    if (cJSON_IsBool(param) == false) {
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "%s validation failed, Enabled is not boolean\n",
+            WIFI_REPURPOSED_VAP_OBJECT);
+        return webconfig_error_decode;
+    }
     *config = cJSON_IsTrue(param) ? webconfig_repurposed_vap_enable :
                                     webconfig_repurposed_vap_disable;
-    wifi_util_repurposed_info(WIFI_WEBCONFIG, "RepurposedVapConfig Enabled:%d\n",
+    wifi_util_repurposed_info(WIFI_WEBCONFIG, "%s Enabled:%d\n", WIFI_REPURPOSED_VAP_OBJECT,
         *config == webconfig_repurposed_vap_enable);
 
     return webconfig_error_none;
