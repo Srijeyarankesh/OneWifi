@@ -422,6 +422,10 @@ interop_data_t *create_interop_sta_data_hash_map(hash_map_t *sta_map, mac_addr_t
 
 hash_map_t *get_interop_sta_data_map(unsigned int vap_index) {
 
+    // the map of the repurpose target serves only the repurposed role, as a hotspot it has none
+    if (isVapRepurposeTarget(vap_index) && !isVapRepurposed(vap_index)) {
+        return NULL;
+    }
     pthread_mutex_lock(&g_monitor_module.data_lock);
     unsigned int vap_array_index;
     char vap_name[32] = {0};
