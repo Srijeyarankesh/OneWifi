@@ -664,8 +664,8 @@ typedef struct {
     bool repurposed_vap_enable;
 } wifi_rfc_dml_parameters_t;
 
-#define WIFI_REPURPOSED_VAP_ENABLE "Device.WiFi.RepurposedVap.Enable"
-#define WIFI_REPURPOSED_VAP_STATUS "Device.WiFi.RepurposedVap.Status"
+#define WIFI_REPURPOSED_VAP_ENABLE "Device.WiFi.Repurposed2GVap.Enable"
+#define WIFI_REPURPOSED_VAP_STATUS "Device.WiFi.Repurposed2GVap.Status"
 /* For tests only: when this file exists, its first line is the SSID of the repurposed VAP instead
  * of the private 2.4 GHz one (derive_repurposed_vap_config()). */
 #ifndef WIFI_REPURPOSED_VAP_TEST_SSID_FILE
