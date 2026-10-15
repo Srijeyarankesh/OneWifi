@@ -897,7 +897,8 @@ int notify_repurposed_vap_status(wifi_ctrl_t *ctrl, bool enabled)
         WIFI_REPURPOSED_VAP_STATUS, enabled);
     rc = get_bus_descriptor()->bus_event_publish_fn(&ctrl->handle, WIFI_REPURPOSED_VAP_STATUS,
         &rdata);
-    if (rc != bus_error_success) {
+    // without a subscriber the event is published all the same: the state is announced
+    if ((rc != bus_error_success) && (rc != bus_error_nosubscribers)) {
         wifi_util_repurposed_error(WIFI_CTRL, "bus_event_publish_fn failed %d\n", rc);
         return RETURN_ERR;
     }
