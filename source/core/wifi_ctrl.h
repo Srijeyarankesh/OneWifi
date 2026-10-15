@@ -296,7 +296,7 @@ typedef struct wifi_ctrl {
     bool                hotspot_client_dhcp_failure_subscribed;
     bool                multiap_sta_enabled;
     int                 multiap_timer_id;
-    bool                repurposed_vap_status; /* Device.WiFi.RepurposedVap.Status announced */
+    bool                repurposed_vap_status; /* Device.WiFi.Repurposed2GVap.Status announced */
 } wifi_ctrl_t;
 
 

@@ -2229,7 +2229,7 @@ static int webconfig_hal_repurposed_vap_request_apply(wifi_ctrl_t *ctrl,
     return ret;
 }
 
-/* Device.WiFi.RepurposedVap.Status announces the feature state (the RFC): published once a
+/* Device.WiFi.Repurposed2GVap.Status announces the feature state (the RFC): published once a
  * change of it is applied, whatever changed it, so that other components can act on it. A
  * failed publication is retried on the next call. */
 int publish_repurposed_vap_status(wifi_ctrl_t *ctrl)

@@ -62,7 +62,7 @@ static bool is_personal_security_mode(wifi_security_modes_t mode)
 /* For tests only: the SSID of the repurposed VAP is the first line of
  * WIFI_REPURPOSED_VAP_TEST_SSID_FILE when that file exists, so that a test client can tell it from
  * the private 2.4 GHz VAP. The file is in /tmp: a reboot ends the test. It applies on the next
- * derivation, Device.WiFi.RepurposedVap.Enable set to true again or a change of the private VAPs.
+ * derivation, Device.WiFi.Repurposed2GVap.Enable set to true again or a change of the private VAPs.
  * A line that is not a valid SSID is ignored. */
 static void apply_repurposed_vap_test_ssid(wifi_vap_info_t *vap_info)
 {

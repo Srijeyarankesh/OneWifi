@@ -138,7 +138,7 @@ void wifi_util_print(wifi_log_level_t level, wifi_dbg_type_t module, const char 
 #define wifi_util_error_print(module, format, ...) \
     wifi_util_print(WIFI_LOG_LVL_ERROR, module, format, ##__VA_ARGS__)
 
-/* Every log line of the repurposed private VAP path (Device.WiFi.RepurposedVap) starts with this
+/* Every log line of the repurposed private VAP path (Device.WiFi.Repurposed2GVap) starts with this
  * tag, in OneWifi and in rdk-wifi-hal, so that one grep follows a request to the driver. */
 #define WIFI_REPURPOSED_LOG_TAG "SREESH"
 #define wifi_util_repurposed_dbg(module, format, ...) \
