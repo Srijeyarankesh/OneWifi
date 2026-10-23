@@ -62,6 +62,50 @@ const char* security_config_find_by_key(const struct schema_Wifi_VIF_Config *vco
 webconfig_error_t translate_ovsdb_to_vap_info_radius_settings(const struct
     schema_Wifi_VIF_Config *vap_row, wifi_vap_info_t *vap);
 
+/* The target of the repurposed private 2.4 GHz VAP (derive_repurposed_vap_config()) */
+#define REPURPOSED_VAP_TARGET_NAME VAP_PREFIX_HOTSPOT_SECURE "_2g"
+
+typedef enum {
+    ovsdb_vap_view_type,    // translated by its type
+    ovsdb_vap_view_private, // the repurposed VAP: translated as a private VAP, with its clients
+    ovsdb_vap_view_absent   // the target VAP without the repurposed role: no row
+} ovsdb_vap_view_t;
+
+/* How a VAP is published in the OVSDB tables. While OVSM supports it (repurposed_vap_supported),
+ * the target VAP holding the repurposed role is a private VAP of the home network, and without the
+ * role it is not part of the home network: it is absent, as the hotspot VAPs are from the OVSM
+ * interface map. */
+static ovsdb_vap_view_t get_ovsdb_vap_view(const webconfig_external_ovsdb_t *proto,
+    wifi_platform_property_t *wifi_prop, const wifi_vap_info_t *vap)
+{
+    wifi_vap_name_t vap_name = { 0 };
+
+    if ((proto->repurposed_vap_supported == false) || (vap->vap_mode != wifi_vap_mode_ap) ||
+        (convert_vap_index_to_name(wifi_prop, vap->vap_index, vap_name) != RETURN_OK) ||
+        (strcmp(vap_name, REPURPOSED_VAP_TARGET_NAME) != 0)) {
+        return ovsdb_vap_view_type;
+    }
+    return (strcmp(vap->repurposed_vap_name, WIFI_REPURPOSED_PRIVATE_2G_NAME) == 0) ?
+        ovsdb_vap_view_private : ovsdb_vap_view_absent;
+}
+
+/* The interface map entry of the private VAP on the radio of iface_map */
+static const wifi_interface_name_idex_map_t *get_private_interface_map(
+    wifi_platform_property_t *wifi_prop, const wifi_interface_name_idex_map_t *iface_map)
+{
+    const wifi_interface_name_idex_map_t *map;
+    unsigned int i;
+
+    for (i = 0; i < ARRAY_SIZE(wifi_prop->interface_map); i++) {
+        map = &wifi_prop->interface_map[i];
+        if ((map->rdk_radio_index == iface_map->rdk_radio_index) &&
+            (strncmp(map->vap_name, VAP_PREFIX_PRIVATE, strlen(VAP_PREFIX_PRIVATE)) == 0)) {
+            return map;
+        }
+    }
+    return NULL;
+}
+
 
 struct ovs_vapname_cloudvifname_map {
     char cloudvifname[64];
@@ -2337,6 +2381,59 @@ webconfig_error_t translate_private_vap_info_to_vif_config(wifi_vap_info_t *vap,
     return webconfig_error_none;
 }
 
+/* The repurposed VAP as the private VAP it follows: a copy without the repurposed name, which in
+ * the rows marks a VAP repurposed away from its type and disables it (extender repurposing, see
+ * translate_vap_info_to_ovsdb_common()). Freed by the caller. */
+static wifi_vap_info_t *repurposed_vap_as_private(const wifi_vap_info_t *vap)
+{
+    wifi_vap_info_t *private_vap;
+
+    if ((private_vap = malloc(sizeof(*private_vap))) == NULL) {
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "malloc failed for %s\n", vap->vap_name);
+        return NULL;
+    }
+    memcpy(private_vap, vap, sizeof(*private_vap));
+    private_vap->repurposed_vap_name[0] = '\0';
+    return private_vap;
+}
+
+/* The repurposed private 2.4 GHz VAP is the private VAP it follows
+ * (derive_repurposed_vap_config()): its row is the one of a private VAP, in the VLAN of the private
+ * VAP on its radio, with the MAC filter it shares with that VAP. Only the identity (interface name,
+ * BSSID) is its own. */
+static webconfig_error_t translate_repurposed_vap_info_to_vif_config(wifi_vap_info_t *vap,
+    rdk_wifi_vap_info_t *rdk_vap, const wifi_interface_name_idex_map_t *iface_map,
+    struct schema_Wifi_VIF_Config *vap_row, wifi_platform_property_t *wifi_prop,
+    bool sec_schema_is_legacy)
+{
+    const wifi_interface_name_idex_map_t *private_map;
+    wifi_interface_name_idex_map_t row_map;
+    wifi_vap_info_t *private_vap;
+    webconfig_error_t ret;
+
+    if ((private_map = get_private_interface_map(wifi_prop, iface_map)) == NULL) {
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "no private vap on the radio of %s\n",
+            vap->vap_name);
+        return webconfig_error_translate_to_ovsdb;
+    }
+    row_map = *iface_map;
+    row_map.vlan_id = private_map->vlan_id;
+    if ((private_vap = repurposed_vap_as_private(vap)) == NULL) {
+        return webconfig_error_translate_to_ovsdb;
+    }
+
+    ret = translate_private_vap_info_to_vif_config(private_vap, &row_map, vap_row, wifi_prop,
+        sec_schema_is_legacy);
+    free(private_vap);
+    if ((ret != webconfig_error_none) ||
+        (translate_macfilter_from_rdk_vap_to_ovsdb_vif_config(rdk_vap, vap_row) !=
+            webconfig_error_none)) {
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "translation of %s failed\n", vap->vap_name);
+        return webconfig_error_translate_to_ovsdb;
+    }
+    return webconfig_error_none;
+}
+
 webconfig_error_t translate_iot_vap_info_to_vif_config(wifi_vap_info_t *vap, const wifi_interface_name_idex_map_t *iface_map, struct schema_Wifi_VIF_Config *vap_row, wifi_platform_property_t *wifi_prop,
     bool sec_schema_is_legacy)
 {
@@ -2525,6 +2622,7 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_config_for_dml(webconfig_s
     wifi_interface_name_idex_map_t *iface_map;
     webconfig_external_ovsdb_t *proto;
     bool sec_schema_is_legacy;
+    ovsdb_vap_view_t view;
 
     unsigned int presence_mask = 0;
     unsigned int count = 0, *row_count = NULL;
@@ -2585,7 +2683,9 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_config_for_dml(webconfig_s
 #endif /*_SR213_PRODUCT_REQ_*/
             }
 #endif /* !defined(_WNXL11BWL_PRODUCT_REQ_) && !defined(_PP203X_PRODUCT_REQ_) && !defined(_GREXT02ACTS_PRODUCT_REQ_)*/
-            if (rdk_vap->exists == false) {
+            // the target vap without the repurposed role is absent
+            view = get_ovsdb_vap_view(proto, wifi_prop, vap);
+            if ((rdk_vap->exists == false) || (view == ovsdb_vap_view_absent)) {
                 presence_mask |= (1 << vap->vap_index);
                 continue;
             }
@@ -2608,7 +2708,14 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_config_for_dml(webconfig_s
                 return webconfig_error_translate_to_ovsdb;
             }
 
-            if (is_vap_private(wifi_prop, vap->vap_index) == TRUE) {
+            if (view == ovsdb_vap_view_private) {
+                if (translate_repurposed_vap_info_to_vif_config(vap, rdk_vap, iface_map, vap_row,
+                        wifi_prop, sec_schema_is_legacy) != webconfig_error_none) {
+                    return webconfig_error_translate_to_ovsdb;
+                }
+                presence_mask |= (1 << vap->vap_index);
+                count++;
+            } else if (is_vap_private(wifi_prop, vap->vap_index) == TRUE) {
                 if (translate_private_vap_info_to_vif_config(vap, iface_map, vap_row, wifi_prop, sec_schema_is_legacy) != webconfig_error_none) {
                     wifi_util_error_print(WIFI_WEBCONFIG,"%s:%d: Translation of private vap to ovsdb failed for %d\n", __func__, __LINE__, vap->vap_index);
                     return webconfig_error_translate_to_ovsdb;
@@ -3105,6 +3212,46 @@ webconfig_error_t translate_private_vap_info_to_vif_state(wifi_vap_info_t *vap, 
     return webconfig_error_none;
 }
 
+/* The state of the repurposed private 2.4 GHz VAP, as
+ * translate_repurposed_vap_info_to_vif_config(). Its minimum hardware mode, kept from the
+ * configuration rows, is also the one of the private VAP. */
+static webconfig_error_t translate_repurposed_vap_info_to_vif_state(wifi_vap_info_t *vap,
+    rdk_wifi_vap_info_t *rdk_vap, const wifi_interface_name_idex_map_t *iface_map,
+    struct schema_Wifi_VIF_State *vap_row, wifi_platform_property_t *wifi_prop,
+    bool sec_schema_is_legacy)
+{
+    const wifi_interface_name_idex_map_t *private_map;
+    wifi_interface_name_idex_map_t row_map;
+    wifi_vap_info_t *private_vap;
+    webconfig_error_t ret;
+
+    if ((private_map = get_private_interface_map(wifi_prop, iface_map)) == NULL) {
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "no private vap on the radio of %s\n",
+            vap->vap_name);
+        return webconfig_error_translate_to_ovsdb;
+    }
+    row_map = *iface_map;
+    row_map.vlan_id = private_map->vlan_id;
+    if ((private_vap = repurposed_vap_as_private(vap)) == NULL) {
+        return webconfig_error_translate_to_ovsdb;
+    }
+
+    ret = translate_private_vap_info_to_vif_state(private_vap, &row_map, vap_row, wifi_prop,
+        sec_schema_is_legacy);
+    free(private_vap);
+    if ((ret != webconfig_error_none) ||
+        (translate_macfilter_from_rdk_vap_to_ovsdb_vif_state(rdk_vap, vap_row) !=
+            webconfig_error_none)) {
+        wifi_util_repurposed_error(WIFI_WEBCONFIG, "translation of %s failed\n", vap->vap_name);
+        return webconfig_error_translate_to_ovsdb;
+    }
+    min_hw_mode_conversion(private_map->index, "", vap_row->min_hw_mode, "STATE");
+    wifi_util_repurposed_dbg(WIFI_WEBCONFIG, "%s published as a private vap: %s enabled:%d "
+        "ssid:%s bridge:%s vlan:%d\n", vap->vap_name, vap_row->if_name, vap_row->enabled,
+        vap_row->ssid, vap_row->bridge, vap_row->vlan_id);
+    return webconfig_error_none;
+}
+
 webconfig_error_t translate_hotspot_open_vap_info_to_vif_state(wifi_vap_info_t *vap, const wifi_interface_name_idex_map_t *iface_map, struct schema_Wifi_VIF_State *vap_row, wifi_platform_property_t *wifi_prop)
 {
     if (translate_vap_info_to_vif_state_common(vap, iface_map, vap_row, wifi_prop) != webconfig_error_none) {
@@ -3333,7 +3480,13 @@ webconfig_error_t assoclist_update_assoc_map(rdk_wifi_vap_info_t *rdk_vap_info)
     return webconfig_error_none;
 }
 
-webconfig_error_t translate_vap_object_to_ovsdb_associated_clients(const rdk_wifi_vap_info_t *rdk_vap_info, const struct schema_Wifi_Associated_Clients **clients_table, unsigned int *client_count, wifi_platform_property_t *wifi_prop, assoclist_notifier_type_t assoclist_notifier_type)
+/* The clients of a VAP. Those of hotspot VAPs are not translated, except for the repurposed
+ * private VAP (as_private), whose clients are those of a private VAP. */
+static webconfig_error_t translate_vap_clients_to_ovsdb_associated_clients(
+    const rdk_wifi_vap_info_t *rdk_vap_info,
+    const struct schema_Wifi_Associated_Clients **clients_table, unsigned int *client_count,
+    wifi_platform_property_t *wifi_prop, assoclist_notifier_type_t assoclist_notifier_type,
+    bool as_private)
 {
     assoc_dev_data_t *assoc_dev_data = NULL;
     struct schema_Wifi_Associated_Clients *client_row;
@@ -3355,7 +3508,7 @@ webconfig_error_t translate_vap_object_to_ovsdb_associated_clients(const rdk_wif
         diff_assoc_map = rdk_vap_info->associated_devices_diff_map;
     }
 
-    is_hotspot = is_vap_hotspot(wifi_prop, rdk_vap_info->vap_index) == TRUE;
+    is_hotspot = !as_private && (is_vap_hotspot(wifi_prop, rdk_vap_info->vap_index) == TRUE);
     wifi_util_dbg_print(WIFI_WEBCONFIG,"%s:%d Vap name: %s\n", __func__, __LINE__, rdk_vap_info->vap_name);
     if (is_hotspot) {
         wifi_util_dbg_print(WIFI_WEBCONFIG,"%s:%d associated clients for vap: %s will not be translated to ovsdb.\n", __func__, __LINE__, rdk_vap_info->vap_name);
@@ -3429,6 +3582,12 @@ webconfig_error_t translate_vap_object_to_ovsdb_associated_clients(const rdk_wif
     *client_count = associated_client_count;
 
     return webconfig_error_none;
+}
+
+webconfig_error_t translate_vap_object_to_ovsdb_associated_clients(const rdk_wifi_vap_info_t *rdk_vap_info, const struct schema_Wifi_Associated_Clients **clients_table, unsigned int *client_count, wifi_platform_property_t *wifi_prop, assoclist_notifier_type_t assoclist_notifier_type)
+{
+    return translate_vap_clients_to_ovsdb_associated_clients(rdk_vap_info, clients_table,
+        client_count, wifi_prop, assoclist_notifier_type, false);
 }
 
 webconfig_error_t translate_vap_object_to_ovsdb_associated_clients_for_assoclist(webconfig_subdoc_data_t *data)
@@ -3509,7 +3668,11 @@ webconfig_error_t translate_vap_object_to_ovsdb_associated_clients_for_assoclist
                 return webconfig_error_translate_to_ovsdb;
             }
 
-            if (translate_vap_object_to_ovsdb_associated_clients(&decoded_params->radios[i].vaps.rdk_vap_array[j], clients_table, &client_count, &decoded_params->hal_cap.wifi_prop, decoded_params->assoclist_notifier_type) != webconfig_error_none) {
+            if (translate_vap_clients_to_ovsdb_associated_clients(
+                    &decoded_params->radios[i].vaps.rdk_vap_array[j], clients_table, &client_count,
+                    &decoded_params->hal_cap.wifi_prop, decoded_params->assoclist_notifier_type,
+                    get_ovsdb_vap_view(proto, &decoded_params->hal_cap.wifi_prop, vap) ==
+                        ovsdb_vap_view_private) != webconfig_error_none) {
                 wifi_util_dbg_print(WIFI_WEBCONFIG,"%s:%d: update of associated clients failed for %d\n", __func__, __LINE__, vap->vap_index);
                 return webconfig_error_translate_to_ovsdb;
             }
@@ -3551,6 +3714,7 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_state_for_dml(webconfig_su
     unsigned int count = 0, *row_count = NULL;
     unsigned int dml_vap_mask = 0;
     bool sec_schema_is_legacy;
+    ovsdb_vap_view_t view;
     wifi_platform_property_t *wifi_prop = &data->u.decoded.hal_cap.wifi_prop;
     dml_vap_mask = create_vap_mask(wifi_prop, 8, VAP_PREFIX_PRIVATE, VAP_PREFIX_IOT, VAP_PREFIX_HOTSPOT_OPEN, VAP_PREFIX_HOTSPOT_SECURE, \
                                                  VAP_PREFIX_MESH_BACKHAUL, VAP_PREFIX_MESH_STA, VAP_PREFIX_LNF_PSK, VAP_PREFIX_LNF_RADIUS);
@@ -3617,10 +3781,13 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_state_for_dml(webconfig_su
 #endif /*_SR213_PRODUCT_REQ_*/
             }
 #endif /*!defined(_WNXL11BWL_PRODUCT_REQ_) && !defined(_PP203X_PRODUCT_REQ_) && !defined(_GREXT02ACTS_PRODUCT_REQ_) */
-            proto->vap_info[proto->num_vaps].exists = rdk_vap->exists;
+            // the target vap without the repurposed role is absent: OVSM removes its state row
+            view = get_ovsdb_vap_view(proto, wifi_prop, vap);
+            proto->vap_info[proto->num_vaps].exists = rdk_vap->exists &&
+                (view != ovsdb_vap_view_absent);
             proto->num_vaps++;
 
-            if (rdk_vap->exists == false) {
+            if ((rdk_vap->exists == false) || (view == ovsdb_vap_view_absent)) {
                 presence_mask |= (1 << vap->vap_index);
                 continue;
             }
@@ -3648,7 +3815,14 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_state_for_dml(webconfig_su
                 vap_row->channel = radio->oper.channel;
             }
 
-            if (is_vap_private(wifi_prop, vap->vap_index) == TRUE) {
+            if (view == ovsdb_vap_view_private) {
+                if (translate_repurposed_vap_info_to_vif_state(vap, rdk_vap, iface_map, vap_row,
+                        wifi_prop, sec_schema_is_legacy) != webconfig_error_none) {
+                    return webconfig_error_translate_to_ovsdb;
+                }
+                presence_mask |= (1 << vap->vap_index);
+                count++;
+            } else if (is_vap_private(wifi_prop, vap->vap_index) == TRUE) {
                 if (translate_private_vap_info_to_vif_state(vap, iface_map, vap_row, wifi_prop, sec_schema_is_legacy) != webconfig_error_none) {
                     wifi_util_dbg_print(WIFI_WEBCONFIG,"%s:%d: Translation of private vap to ovsdb failed for %d\n", __func__, __LINE__, vap->vap_index);
                     return webconfig_error_translate_to_ovsdb;
@@ -5717,6 +5891,7 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_state(webconfig_subdoc_dat
     unsigned int presence_mask = 0, private_vap_mask = 0;
     unsigned int *row_count = NULL;
     bool sec_schema_is_legacy;
+    ovsdb_vap_view_t view;
 
     decoded_params = &data->u.decoded;
     if (decoded_params == NULL) {
@@ -5787,10 +5962,13 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_state(webconfig_subdoc_dat
 #endif /*_SR213_PRODUCT_REQ_*/
             }
 #endif /* !defined(_WNXL11BWL_PRODUCT_REQ_) && !defined(_PP203X_PRODUCT_REQ_) && !defined(_GREXT02ACTS_PRODUCT_REQ_)*/
-            proto->vap_info[proto->num_vaps].exists = rdk_vap->exists;
+            // the target vap without the repurposed role is absent: OVSM removes its state row
+            view = get_ovsdb_vap_view(proto, wifi_prop, vap);
+            proto->vap_info[proto->num_vaps].exists = rdk_vap->exists &&
+                (view != ovsdb_vap_view_absent);
             proto->num_vaps++;
 
-            if (rdk_vap->exists == false) {
+            if ((rdk_vap->exists == false) || (view == ovsdb_vap_view_absent)) {
                 presence_mask |= (1 << vap->vap_index);
                 continue;
             }
@@ -5819,7 +5997,14 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_state(webconfig_subdoc_dat
                 vap_row->channel = radio->oper.channel;
             } 
 
-            if (is_vap_private(wifi_prop, vap->vap_index) == TRUE) {
+            if (view == ovsdb_vap_view_private) {
+                if (translate_repurposed_vap_info_to_vif_state(vap, rdk_vap, iface_map, vap_row,
+                        wifi_prop, sec_schema_is_legacy) != webconfig_error_none) {
+                    return webconfig_error_translate_to_ovsdb;
+                }
+                presence_mask |= (1 << vap->vap_index);
+                count++;
+            } else if (is_vap_private(wifi_prop, vap->vap_index) == TRUE) {
                 if (translate_private_vap_info_to_vif_state(vap, iface_map, vap_row, wifi_prop, sec_schema_is_legacy) != webconfig_error_none) {
                     wifi_util_error_print(WIFI_WEBCONFIG,"%s:%d: Translation of private vap to ovsdb failed for %d\n", __func__, __LINE__, vap->vap_index);
                     return webconfig_error_translate_to_ovsdb;
@@ -6780,6 +6965,7 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_config_for_xfinity(webconf
     unsigned int *row_count = 0;
     unsigned char count = 0;
     bool sec_schema_is_legacy;
+    ovsdb_vap_view_t view;
 
     decoded_params = &data->u.decoded;
     if (decoded_params == NULL) {
@@ -6833,7 +7019,9 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_config_for_xfinity(webconf
 #endif /* _SR213_PRODUCT_REQ_ */
             }
 #endif /*defined(_WNXL11BWL_PRODUCT_REQ_) && !defined(_PP203X_PRODUCT_REQ_) && !defined(_GREXT02ACTS_PRODUCT_REQ_) */
-            if (rdk_vap->exists == false) {
+            // the target vap without the repurposed role is absent
+            view = get_ovsdb_vap_view(proto, wifi_prop, vap);
+            if ((rdk_vap->exists == false) || (view == ovsdb_vap_view_absent)) {
                 presence_mask |= (1 << vap->vap_index);
                 continue;
             }
@@ -6859,7 +7047,14 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_config_for_xfinity(webconf
                 return webconfig_error_translate_to_ovsdb;
             }
 
-            if (is_vap_hotspot_open(wifi_prop, vap->vap_index) == TRUE) {
+            if (view == ovsdb_vap_view_private) {
+                if (translate_repurposed_vap_info_to_vif_config(vap, rdk_vap, iface_map, vap_row,
+                        wifi_prop, sec_schema_is_legacy) != webconfig_error_none) {
+                    return webconfig_error_translate_to_ovsdb;
+                }
+                presence_mask |= (1 << vap->vap_index);
+                count++;
+            } else if (is_vap_hotspot_open(wifi_prop, vap->vap_index) == TRUE) {
 
                 if (translate_hotspot_open_vap_info_to_vif_config(vap, iface_map, vap_row, wifi_prop) != webconfig_error_none) {
                     wifi_util_error_print(WIFI_WEBCONFIG,"%s:%d: Translation of hotspot open vap to ovsdb failed for %d\n", __func__, __LINE__, vap->vap_index);

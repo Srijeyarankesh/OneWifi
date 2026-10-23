@@ -297,6 +297,7 @@ typedef struct wifi_ctrl {
     bool                multiap_sta_enabled;
     int                 multiap_timer_id;
     bool                repurposed_vap_status; /* Device.WiFi.Repurposed2GVap.Status announced */
+    bool                repurposed_vap_clients_resync; /* role changed: clients after the DML */
 } wifi_ctrl_t;
 
 
