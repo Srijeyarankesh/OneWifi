@@ -587,6 +587,15 @@ int webconfig_analyze_pending_states(wifi_ctrl_t *ctrl)
         case ctrl_webconfig_state_vap_all_cfg_rsp_pending:
             type = webconfig_subdoc_type_dml;
             webconfig_send_dml_subdoc_status(ctrl);
+            // the repurposed vap took or left its role: OVSM translates its clients by the view
+            // of the DML subdoc just published, so the full list follows, also of clients that
+            // associated before it
+            if (ctrl->repurposed_vap_clients_resync) {
+                ctrl->repurposed_vap_clients_resync = false;
+                ctrl->webconfig_state |=
+                    ctrl_webconfig_state_associated_clients_full_cfg_rsp_pending;
+                webconfig_send_full_associate_status(ctrl);
+            }
             break;
         case ctrl_webconfig_state_factoryreset_cfg_rsp_pending:
             type = webconfig_subdoc_type_dml;
@@ -2167,6 +2176,9 @@ int webconfig_hal_repurposed_vap_apply(wifi_ctrl_t *ctrl, bool enable,
     } else {
         wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d applied by the private service\n",
             vap_index);
+        // the vap changed: published again (DML subdoc), as the private vaps are after a change,
+        // so that its OVSDB rows and DML view follow it also when it keeps the role
+        ctrl->webconfig_state |= ctrl_webconfig_state_vap_all_cfg_rsp_pending;
     }
     return ret;
 }
@@ -2220,9 +2232,10 @@ static int webconfig_hal_repurposed_vap_request_apply(wifi_ctrl_t *ctrl,
     if (applied != ret_applied) {
         wifi_util_repurposed_info(WIFI_CTRL, "vap_index:%d repurposed status %d -> %d\n",
             vap_index, applied, ret_applied);
-        // the mac filter and dml views of the vap changed
+        // the mac filter and dml views of the vap changed, and so the view of its clients
         ctrl->webconfig_state |= (ctrl_webconfig_state_macfilter_cfg_rsp_pending |
             ctrl_webconfig_state_vap_all_cfg_rsp_pending);
+        ctrl->repurposed_vap_clients_resync = true;
     }
     // also a feature reset elsewhere (WiFi factory reset of the DML) is announced from here
     publish_repurposed_vap_status(ctrl);

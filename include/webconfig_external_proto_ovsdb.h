@@ -61,11 +61,22 @@ typedef struct {
 
     bool sec_schema_is_legacy;
 
+    /* The interface map of OVSM has the repurposed private 2.4 GHz VAP
+     * (Device.WiFi.Repurposed2GVap; XB10: svc-g-ap-24, XB7/XB8: wl0.5). While that VAP holds the
+     * repurposed role, its rows are those of the private 2.4 GHz VAP it follows (only the interface
+     * name and BSSID are its own) and its clients are translated with it as parent; without the
+     * role it does not exist (vap_info). Not set, the tables are as without the feature: the VAP
+     * is a hotspot VAP. */
+    bool repurposed_vap_supported;
+
 /* TBD: place for next arrays and other data, in particular
  *
  * * the supplementary STATE data read from OneWifi Manager
  * */
 
 } webconfig_external_ovsdb_t;
+
+/* webconfig_external_ovsdb_t has repurposed_vap_supported */
+#define WEBCONFIG_OVSDB_REPURPOSED_VAP_SUPPORT 1
 
 #endif //EXTERNAL_PROTO_OVSDB_H
