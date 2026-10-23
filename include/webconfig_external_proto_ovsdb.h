@@ -76,7 +76,4 @@ typedef struct {
 
 } webconfig_external_ovsdb_t;
 
-/* webconfig_external_ovsdb_t has repurposed_vap_supported */
-#define WEBCONFIG_OVSDB_REPURPOSED_VAP_SUPPORT 1
-
 #endif //EXTERNAL_PROTO_OVSDB_H
