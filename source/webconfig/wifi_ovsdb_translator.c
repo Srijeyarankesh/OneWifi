@@ -5962,13 +5962,15 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_state(webconfig_subdoc_dat
 #endif /*_SR213_PRODUCT_REQ_*/
             }
 #endif /* !defined(_WNXL11BWL_PRODUCT_REQ_) && !defined(_PP203X_PRODUCT_REQ_) && !defined(_GREXT02ACTS_PRODUCT_REQ_)*/
-            // the target vap without the repurposed role is absent: OVSM removes its state row
+            // the target vap without the repurposed role is absent: OVSM removes its state row.
+            // With the role, its rows are those of the private vap it follows, from the DML
+            // subdoc that every change of it publishes, not from this one (no mac filter)
             view = get_ovsdb_vap_view(proto, wifi_prop, vap);
             proto->vap_info[proto->num_vaps].exists = rdk_vap->exists &&
                 (view != ovsdb_vap_view_absent);
             proto->num_vaps++;
 
-            if ((rdk_vap->exists == false) || (view == ovsdb_vap_view_absent)) {
+            if ((rdk_vap->exists == false) || (view != ovsdb_vap_view_type)) {
                 presence_mask |= (1 << vap->vap_index);
                 continue;
             }
@@ -5997,14 +5999,7 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_state(webconfig_subdoc_dat
                 vap_row->channel = radio->oper.channel;
             } 
 
-            if (view == ovsdb_vap_view_private) {
-                if (translate_repurposed_vap_info_to_vif_state(vap, rdk_vap, iface_map, vap_row,
-                        wifi_prop, sec_schema_is_legacy) != webconfig_error_none) {
-                    return webconfig_error_translate_to_ovsdb;
-                }
-                presence_mask |= (1 << vap->vap_index);
-                count++;
-            } else if (is_vap_private(wifi_prop, vap->vap_index) == TRUE) {
+            if (is_vap_private(wifi_prop, vap->vap_index) == TRUE) {
                 if (translate_private_vap_info_to_vif_state(vap, iface_map, vap_row, wifi_prop, sec_schema_is_legacy) != webconfig_error_none) {
                     wifi_util_error_print(WIFI_WEBCONFIG,"%s:%d: Translation of private vap to ovsdb failed for %d\n", __func__, __LINE__, vap->vap_index);
                     return webconfig_error_translate_to_ovsdb;
@@ -7019,9 +7014,10 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_config_for_xfinity(webconf
 #endif /* _SR213_PRODUCT_REQ_ */
             }
 #endif /*defined(_WNXL11BWL_PRODUCT_REQ_) && !defined(_PP203X_PRODUCT_REQ_) && !defined(_GREXT02ACTS_PRODUCT_REQ_) */
-            // the target vap without the repurposed role is absent
+            // the target vap is absent without the repurposed role, and with it a vap of the DML
+            // subdoc only (translate_vap_object_to_ovsdb_vif_state())
             view = get_ovsdb_vap_view(proto, wifi_prop, vap);
-            if ((rdk_vap->exists == false) || (view == ovsdb_vap_view_absent)) {
+            if ((rdk_vap->exists == false) || (view != ovsdb_vap_view_type)) {
                 presence_mask |= (1 << vap->vap_index);
                 continue;
             }
@@ -7047,14 +7043,7 @@ webconfig_error_t   translate_vap_object_to_ovsdb_vif_config_for_xfinity(webconf
                 return webconfig_error_translate_to_ovsdb;
             }
 
-            if (view == ovsdb_vap_view_private) {
-                if (translate_repurposed_vap_info_to_vif_config(vap, rdk_vap, iface_map, vap_row,
-                        wifi_prop, sec_schema_is_legacy) != webconfig_error_none) {
-                    return webconfig_error_translate_to_ovsdb;
-                }
-                presence_mask |= (1 << vap->vap_index);
-                count++;
-            } else if (is_vap_hotspot_open(wifi_prop, vap->vap_index) == TRUE) {
+            if (is_vap_hotspot_open(wifi_prop, vap->vap_index) == TRUE) {
 
                 if (translate_hotspot_open_vap_info_to_vif_config(vap, iface_map, vap_row, wifi_prop) != webconfig_error_none) {
                     wifi_util_error_print(WIFI_WEBCONFIG,"%s:%d: Translation of hotspot open vap to ovsdb failed for %d\n", __func__, __LINE__, vap->vap_index);
