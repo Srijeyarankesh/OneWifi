@@ -1193,6 +1193,15 @@ webconfig_error_t webconfig_ovsdb_encode(webconfig_t *config,
 
     webconfig_ovsdb_data.u.decoded.external_protos = (webconfig_external_ovsdb_t *)data;
     webconfig_ovsdb_data.descriptor = webconfig_data_descriptor_translate_from_ovsdb;
+    // OVSM sends the configuration of its tables, never a request of the repurposed vap, which a
+    // private subdoc of OneWifi decoded before can have left (encode_private_subdoc())
+    if (webconfig_ovsdb_data.u.decoded.repurposed_vap != webconfig_repurposed_vap_unchanged) {
+        wifi_util_repurposed_info(WIFI_WEBCONFIG, "%s request of a decoded private subdoc not "
+            "sent by OVSM (subdoc type %d)\n",
+            (webconfig_ovsdb_data.u.decoded.repurposed_vap == webconfig_repurposed_vap_enable) ?
+                "enable" : "disable", type);
+    }
+    webconfig_ovsdb_data.u.decoded.repurposed_vap = webconfig_repurposed_vap_unchanged;
     debug_external_protos(&webconfig_ovsdb_data, __func__, __LINE__);
 
     rdk_wifi_radio_state = calloc(MAX_NUM_RADIOS, sizeof(rdk_wifi_radio_t));
