@@ -78,15 +78,24 @@ typedef enum {
 static ovsdb_vap_view_t get_ovsdb_vap_view(const webconfig_external_ovsdb_t *proto,
     wifi_platform_property_t *wifi_prop, const wifi_vap_info_t *vap)
 {
+    static int logged_view = -1; // the view of the last log line: each change is logged once
     wifi_vap_name_t vap_name = { 0 };
+    ovsdb_vap_view_t view;
 
     if ((proto->repurposed_vap_supported == false) || (vap->vap_mode != wifi_vap_mode_ap) ||
         (convert_vap_index_to_name(wifi_prop, vap->vap_index, vap_name) != RETURN_OK) ||
         (strcmp(vap_name, REPURPOSED_VAP_TARGET_NAME) != 0)) {
         return ovsdb_vap_view_type;
     }
-    return (strcmp(vap->repurposed_vap_name, WIFI_REPURPOSED_PRIVATE_2G_NAME) == 0) ?
+    view = (strcmp(vap->repurposed_vap_name, WIFI_REPURPOSED_PRIVATE_2G_NAME) == 0) ?
         ovsdb_vap_view_private : ovsdb_vap_view_absent;
+    if ((int)view != logged_view) {
+        logged_view = view;
+        wifi_util_repurposed_info(WIFI_WEBCONFIG, "%s in the OVSDB tables: %s (role:'%s')\n",
+            vap_name, (view == ovsdb_vap_view_private) ? "a private VIF" : "no rows",
+            vap->repurposed_vap_name);
+    }
+    return view;
 }
 
 /* The interface map entry of the private VAP on the radio of iface_map */
@@ -2440,6 +2449,9 @@ static webconfig_error_t translate_repurposed_vap_info_to_vif_config(wifi_vap_in
         wifi_util_repurposed_error(WIFI_WEBCONFIG, "translation of %s failed\n", vap->vap_name);
         return webconfig_error_translate_to_ovsdb;
     }
+    wifi_util_repurposed_dbg(WIFI_WEBCONFIG, "%s config row as a private vap: %s enabled:%d "
+        "ssid:%s bridge:%s vlan:%d\n", vap->vap_name, vap_row->if_name, vap_row->enabled,
+        vap_row->ssid, vap_row->bridge, vap_row->vlan_id);
     return webconfig_error_none;
 }
 
@@ -3587,6 +3599,10 @@ static webconfig_error_t translate_vap_clients_to_ovsdb_associated_clients(
             associated_client_count++;
             assoc_dev_data = hash_map_get_next(rdk_vap_info->associated_devices_map, assoc_dev_data);
         }
+    }
+    if (as_private) {
+        wifi_util_repurposed_dbg(WIFI_WEBCONFIG, "%s: %u clients translated as private clients\n",
+            rdk_vap_info->vap_name, associated_client_count - *client_count);
     }
     *client_count = associated_client_count;
 

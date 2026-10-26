@@ -592,6 +592,8 @@ int webconfig_analyze_pending_states(wifi_ctrl_t *ctrl)
             // associated before it
             if (ctrl->repurposed_vap_clients_resync) {
                 ctrl->repurposed_vap_clients_resync = false;
+                wifi_util_repurposed_info(WIFI_CTRL, "full client list after the DML subdoc of a "
+                    "role change\n");
                 ctrl->webconfig_state |=
                     ctrl_webconfig_state_associated_clients_full_cfg_rsp_pending;
                 webconfig_send_full_associate_status(ctrl);
